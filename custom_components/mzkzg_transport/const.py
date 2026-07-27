@@ -197,10 +197,12 @@ CONF_PLK_TIER = "plk_tier"
 CONF_SLEEP_START = "sleep_start"
 CONF_SLEEP_END = "sleep_end"
 CONF_SLEEP_ENABLED = "sleep_enabled"
+CONF_FALLBACK_MIN = "fallback_min"
 
 DEFAULT_SCAN_INTERVAL = 30
 DEFAULT_SLEEP_START = "00:00"
 DEFAULT_SLEEP_END = "04:30"
+DEFAULT_FALLBACK_MIN = 8
 STOP_ID_PATTERN = r"^[a-zA-Z0-9_:-]+$"
 
 # PLK tier → max requests per hour

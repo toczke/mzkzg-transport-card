@@ -173,7 +173,7 @@ For PLK provider, add API key from `https://pdp-api.plk-sa.pl`.
 ### Per-sensor overrides
 
 ```yaml
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 view_mode: mixed
 entities:
   - entity: sensor.mzkzg_ztm_1327
@@ -263,7 +263,7 @@ Open `http://localhost:8125/dev/preview.html`
 
 - Open an issue with provider, stop ID, steps, expected vs actual behavior.
 - For code changes, include tests where possible.
-- The card source lives in `custom_components/mzkzg_transport/www/mzkzg-transport-card.js`.
+- The card source lives in `custom_components/mzkzg_transport/www/polish-transport-card.js`.
 
 ## Project Structure
 
@@ -287,7 +287,7 @@ custom_components/mzkzg_transport/
 ├── provider_lodz.py         # MPK Łódź (rozklady.lodz.pl)
 ├── http_utils.py            # Shared HTTP retry logic
 ├── www/
-│   └── mzkzg-transport-card.js  # Lovelace card (vanilla JS)
+│   └── polish-transport-card.js  # Lovelace card (vanilla JS)
 ├── translations/            # UI strings
 └── manifest.json
 tests/                       # pytest test suite

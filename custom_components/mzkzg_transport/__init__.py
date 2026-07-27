@@ -12,7 +12,7 @@ from .coordinator import MzkzgTransportCoordinator
 PLATFORMS = ["sensor", "binary_sensor"]
 _MANIFEST = json.loads((Path(__file__).parent / "manifest.json").read_text())
 CARD_VERSION = _MANIFEST["version"]
-CARD_URL = f"/mzkzg_transport/mzkzg-transport-card.js?v={CARD_VERSION}"
+CARD_URL = f"/polish_transport/polish-transport-card.js?v={CARD_VERSION}"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -77,25 +77,31 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN]["_coordinators"].pop(entry.entry_id, None)
         # Clean up shared caches if no more entries
         if not hass.data[DOMAIN].get("_coordinators"):
-            for key in ("_plk_cache", "_plk_lock", "_ztm_fleet", "_gtfsrt_cache",
-                        "_gtfsrt_vehicles", "_krakow_meta", "_krakow_vehicles"):
+            for key in ("_plk_cache", "_plk_lock", "_ztm_fleet", "_ztm_gtfs_cache",
+                        "_gtfsrt_cache", "_gtfsrt_vehicles", "_krakow_meta", "_krakow_vehicles"):
                 hass.data[DOMAIN].pop(key, None)
     return unload_ok
 
 
 async def _register_card(hass: HomeAssistant) -> None:
-    """Serve and register the Lovelace card JS."""
+    """Serve and register the Lovelace card JS (supports both polish-transport-card and legacy mzkzg-transport-card)."""
     www_path = str(Path(__file__).parent / "www")
+    static_paths = [
+        ("/polish_transport", www_path),
+        ("/mzkzg_transport", www_path),
+    ]
     try:
         from homeassistant.components.http import StaticPathConfig
         if hasattr(hass.http, "async_register_static_paths"):
             await hass.http.async_register_static_paths([
-                StaticPathConfig("/mzkzg_transport", www_path, False)
+                StaticPathConfig(url, path, False) for url, path in static_paths
             ])
         else:
-            hass.http.register_static_path("/mzkzg_transport", www_path, False)
+            for url, path in static_paths:
+                hass.http.register_static_path(url, path, False)
     except (ImportError, AttributeError):
-        hass.http.register_static_path("/mzkzg_transport", www_path, False)
+        for url, path in static_paths:
+            hass.http.register_static_path(url, path, False)
 
     # Register as module resource so card appears in picker automatically
     try:
@@ -110,9 +116,9 @@ async def _register_card(hass: HomeAssistant) -> None:
             if hasattr(resources, "async_items") and isinstance(resources, ResourceStorageCollection):
                 existing = [
                     r for r in resources.async_items()
-                    if "/mzkzg_transport/" in (r.get("url") or "")
+                    if "/mzkzg_transport/" in (r.get("url") or "") or "/polish_transport/" in (r.get("url") or "")
                 ]
-                # Remove all old entries
+                # Remove all old entries so we replace with current version
                 for r in existing:
                     await resources.async_delete_item(r["id"])
                 # Add current version

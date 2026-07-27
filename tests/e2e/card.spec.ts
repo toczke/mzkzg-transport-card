@@ -9,7 +9,7 @@ test.describe('Card rendering', () => {
   });
 
   test('cards render with correct provider color', async ({ page }) => {
-    const card = page.locator('mzkzg-transport-card').first();
+    const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
     await expect(card).toBeVisible();
     const header = card.locator('.header');
     const bg = await header.evaluate(el => getComputedStyle(el).backgroundColor);
@@ -18,7 +18,7 @@ test.describe('Card rendering', () => {
   });
 
   test('card shows provider display name in subtitle', async ({ page }) => {
-    const card = page.locator('mzkzg-transport-card').first();
+    const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
     const sub = card.locator('.header-sub');
     const text = await sub.textContent();
     expect(text).not.toContain('ztm_gdansk');
@@ -26,14 +26,14 @@ test.describe('Card rendering', () => {
   });
 
   test('card shows departure rows', async ({ page }) => {
-    const card = page.locator('mzkzg-transport-card').first();
+    const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
     const rows = card.locator('.dep-row');
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
   });
 
   test('departure row has route badge and time', async ({ page }) => {
-    const card = page.locator('mzkzg-transport-card').first();
+    const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
     const row = card.locator('.dep-row').first();
     const badge = row.locator('.route-badge');
     await expect(badge).toBeVisible();
@@ -42,7 +42,7 @@ test.describe('Card rendering', () => {
   });
 
   test('card height is consistent with padding', async ({ page }) => {
-    const cards = page.locator('mzkzg-transport-card');
+    const cards = page.locator('mzkzg-transport-card, polish-transport-card');
     const count = await cards.count();
     if (count >= 2) {
       const h1 = await cards.nth(0).boundingBox();
@@ -101,7 +101,7 @@ test.describe('Visual editor', () => {
     await page.getByRole('button', { name: /edit/i }).click().catch(() => {});
     await page.waitForTimeout(1000);
     // The card should still show departures after edit mode
-    const card = page.locator('mzkzg-transport-card').first();
+    const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
     const rows = card.locator('.dep-row');
     const count = await rows.count();
     expect(count).toBeGreaterThanOrEqual(0);
@@ -119,7 +119,7 @@ test.describe('Provider colors', () => {
     test(`${p.name} has correct color and label`, async ({ page }) => {
       await page.goto(`${HA_URL}/dashboard-testing/${p.path}`);
       await page.waitForTimeout(5000);
-      const card = page.locator('mzkzg-transport-card').first();
+      const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
       const sub = card.locator('.header-sub');
       const text = await sub.textContent();
       expect(text).toContain(p.name);

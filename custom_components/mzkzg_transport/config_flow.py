@@ -32,6 +32,7 @@ from .const import (
 
 
     CONF_NAME,
+    CONF_FALLBACK_MIN,
 
 
     CONF_PLK_TIER,
@@ -44,6 +45,7 @@ from .const import (
     CONF_SLEEP_END,
     CONF_SLEEP_START,
     CONF_STOP_ID,
+    DEFAULT_FALLBACK_MIN,
     DEFAULT_SLEEP_END,
     DEFAULT_SLEEP_START,
 
@@ -1145,22 +1147,28 @@ class MzkzgTransportOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=user_input)
 
         current_opts = self.config_entry.options
+        provider = self.config_entry.data.get(CONF_PROVIDER, "")
+        schema = {
+            vol.Optional(
+                CONF_SLEEP_ENABLED,
+                default=current_opts.get(CONF_SLEEP_ENABLED, True),
+            ): bool,
+            vol.Optional(
+                CONF_SLEEP_START,
+                default=current_opts.get(CONF_SLEEP_START, DEFAULT_SLEEP_START),
+            ): str,
+            vol.Optional(
+                CONF_SLEEP_END,
+                default=current_opts.get(CONF_SLEEP_END, DEFAULT_SLEEP_END),
+            ): str,
+        }
+        if provider == PROVIDER_LODZ:
+            schema[vol.Optional(
+                CONF_FALLBACK_MIN,
+                default=current_opts.get(CONF_FALLBACK_MIN, DEFAULT_FALLBACK_MIN),
+            )] = vol.All(vol.Coerce(int), vol.Range(min=1, max=30))
+
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_SLEEP_ENABLED,
-                        default=current_opts.get(CONF_SLEEP_ENABLED, True),
-                    ): bool,
-                    vol.Optional(
-                        CONF_SLEEP_START,
-                        default=current_opts.get(CONF_SLEEP_START, DEFAULT_SLEEP_START),
-                    ): str,
-                    vol.Optional(
-                        CONF_SLEEP_END,
-                        default=current_opts.get(CONF_SLEEP_END, DEFAULT_SLEEP_END),
-                    ): str,
-                }
-            ),
+            data_schema=vol.Schema(schema),
         )

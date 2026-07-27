@@ -91,7 +91,7 @@ jobs:
       - name: Check Python syntax
         run: python -m py_compile custom_components/mzkzg_transport/*.py
       - name: Check JS syntax
-        run: node --check custom_components/mzkzg_transport/www/mzkzg-transport-card.js
+        run: node --check custom_components/mzkzg_transport/www/polish-transport-card.js
 
   validate:
     runs-on: self-hosted

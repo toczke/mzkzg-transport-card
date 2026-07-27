@@ -3,14 +3,14 @@
 # Entity format: sensor.mzkzg_{provider}_{stop_id}
 
 # ── Minimal ───────────────────────────────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 entities:
   - sensor.mzkzg_ztm_1327
 
 ---
 
 # ── Multi-stop mix (bus + tram same area) ─────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 title: Sikorskiego (tramwaj + bus)
 entities:
   - sensor.mzkzg_ztm_2218
@@ -20,7 +20,7 @@ max_departures: 10
 ---
 
 # ── Mixed providers (ZTM + ZKM gradient) ──────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 title: Gdańsk + Gdynia
 entities:
   - sensor.mzkzg_ztm_1205
@@ -30,7 +30,7 @@ max_departures: 10
 ---
 
 # ── All 4 providers ──────────────────────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 title: Trójmiasto – wszystko
 entities:
   - sensor.mzkzg_ztm_1205
@@ -42,7 +42,7 @@ max_departures: 12
 ---
 
 # ── ZTM + SKM at same location ───────────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 title: Śródmieście (tramwaj + SKM)
 entities:
   - sensor.mzkzg_ztm_14464
@@ -52,7 +52,7 @@ max_departures: 10
 ---
 
 # ── Tabs mode ─────────────────────────────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 title: Zakładki
 entities:
   - sensor.mzkzg_ztm_1205
@@ -63,7 +63,7 @@ max_departures: 8
 ---
 
 # ── Compact preset ───────────────────────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 entities:
   - sensor.mzkzg_ztm_2218
   - sensor.mzkzg_zkm_35190
@@ -73,7 +73,7 @@ max_departures: 15
 ---
 
 # ── E-ink preset ─────────────────────────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 entities:
   - sensor.mzkzg_ztm_1205
 display_preset: e_ink
@@ -82,7 +82,7 @@ max_departures: 8
 ---
 
 # ── Route filter ─────────────────────────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 entities:
   - sensor.mzkzg_ztm_2218
 filter_routes:
@@ -94,7 +94,7 @@ max_departures: 8
 ---
 
 # ── Highlight mode (dim non-matching) ────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 entities:
   - sensor.mzkzg_ztm_1205
 filter_routes:
@@ -106,7 +106,7 @@ max_departures: 8
 ---
 
 # ── Destination filter ───────────────────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 entities:
   - sensor.mzkzg_zkm_37030
 destination_filter:
@@ -117,7 +117,7 @@ max_departures: 8
 ---
 
 # ── Custom header color ──────────────────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 entities:
   - sensor.mzkzg_ztm_2091
 header_color: "#7c3aed"
@@ -126,7 +126,7 @@ max_departures: 6
 ---
 
 # ── Realtime only + no footer ────────────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 entities:
   - sensor.mzkzg_ztm_1205
 realtime_only: true
@@ -137,8 +137,59 @@ max_departures: 8
 ---
 
 # ── PLK only (SKM) ──────────────────────────────────────────────────────
-type: custom:mzkzg-transport-card
+type: custom:polish-transport-card
 entities:
   - sensor.mzkzg_plk_7534
 title: SKM Gdańsk Wrzeszcz
+max_departures: 8
+
+---
+
+# ── GZM Katowice (nowe: GPS na mapie) ──────────────────────────────────
+type: custom:polish-transport-card
+title: Katowice Dworzec PKP
+entities:
+  - sensor.mzkzg_gtfsrt_gzm_7105
+max_departures: 10
+
+---
+
+# ── ZTM Lublin (nowe: GPS na mapie) ────────────────────────────────────
+type: custom:polish-transport-card
+title: Lublin Ogród Saski
+entities:
+  - sensor.mzkzg_gtfsrt_lublin_1001
+max_departures: 10
+
+---
+
+# ── MPK Kielce (nowe: GPS na mapie) ────────────────────────────────────
+type: custom:polish-transport-card
+title: Kielce Żytnia
+entities:
+  - sensor.mzkzg_gtfsrt_kielce_1001
+show_bike: true
+show_wheelchair: true
+max_departures: 8
+
+---
+
+# ── ZDiTM Szczecin (z pozycjami GPS) ───────────────────────────────────
+# Stop ID do znalezienia: https://www.zditm.szczecin.pl/pl/pasazer/rozklady-jazdy
+type: custom:polish-transport-card
+title: Szczecin (przykład)
+entities:
+  - sensor.mzkzg_gtfsrt_szczecin_10721
+max_departures: 10
+
+---
+
+# ── MPK Łódź (z pozycjami GPS) ─────────────────────────────────────────
+# Stop ID np. 2095 – Piotrkowska Centrum
+type: custom:polish-transport-card
+title: Łódź Piotrkowska Centrum
+entities:
+  - sensor.mzkzg_lodz_2095
+show_ac: true
+show_ticket_machine: true
 max_departures: 8
