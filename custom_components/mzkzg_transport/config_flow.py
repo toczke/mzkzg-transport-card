@@ -636,7 +636,10 @@ class MzkzgTransportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self._load_krakow_stops()
 
             if provider == PROVIDER_LODZ:
-                return await self._load_gtfs_stops("https://cdn.zbiorkom.live/gtfs/lodz.zip")
+                return await self._load_gtfs_stops(
+                    "https://cdn.zbiorkom.live/gtfs/lodz.zip",
+                    id_column="stop_code",
+                )
 
         except Exception as err:
 
@@ -1094,7 +1097,7 @@ class MzkzgTransportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.warning("Failed to load Kraków stops: %s", e)
             return []
 
-    async def _load_gtfs_stops(self, gtfs_url: str) -> list[dict]:
+    async def _load_gtfs_stops(self, gtfs_url: str, id_column: str = "stop_id") -> list[dict]:
         """Download a GTFS zip and parse stops.txt."""
         import csv
         import zipfile
@@ -1121,14 +1124,17 @@ class MzkzgTransportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 text = zf.read("stops.txt").decode("utf-8-sig")
                 reader = csv.reader(StringIO(text))
                 header = next(reader)
-                id_idx = header.index("stop_id")
+                id_idx = header.index(id_column)
                 name_idx = header.index("stop_name")
+                stops_by_id = {}
                 for parts in reader:
                     if len(parts) > max(id_idx, name_idx):
                         sid = parts[id_idx]
                         name = parts[name_idx]
                         if sid and name:
-                            stops.append({"id": sid, "name": name})
+                            stops_by_id.setdefault(sid, {"id": sid, "name": name})
+
+                stops = list(stops_by_id.values())
 
             stops.sort(key=lambda x: x["name"])
             _LOGGER.debug("GTFS stops: parsed %d stops from %s", len(stops), gtfs_url)

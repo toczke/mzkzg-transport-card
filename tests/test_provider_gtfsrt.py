@@ -15,6 +15,7 @@ from mzkzg_transport.provider_gtfsrt import (
     _peek_zip_member,
     _get_rt_delays,
     _parse_rt_feed,
+    _parse_gtfsrt_positions,
     fetch,
 )
 
@@ -71,6 +72,32 @@ def _calendar_line(service_id, active_today=True):
 
 
 CALENDAR_HEADER = "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date"
+
+
+def test_parse_gtfsrt_vehicle_positions_without_pb_url():
+    """GTFS-RT position parsing works independently of a URL suffix, as required by GZM."""
+    from google.transit import gtfs_realtime_pb2
+
+    feed = gtfs_realtime_pb2.FeedMessage()
+    feed.header.gtfs_realtime_version = "2.0"
+    entity = feed.entity.add()
+    entity.id = "vehicle-GZM-42"
+    entity.vehicle.vehicle.id = "operator/GZM-42"
+    entity.vehicle.position.latitude = 50.2649
+    entity.vehicle.position.longitude = 19.0238
+    entity.vehicle.position.bearing = 90
+    entity.vehicle.position.speed = 12.5
+
+    positions = _parse_gtfsrt_positions(feed.SerializeToString())
+
+    assert positions == {
+        "GZM-42": {
+            "lat": pytest.approx(50.2649),
+            "lng": pytest.approx(19.0238),
+            "bearing": pytest.approx(90),
+            "speed": pytest.approx(12.5),
+        }
+    }
 
 
 @pytest.mark.gtfsrt

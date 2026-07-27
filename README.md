@@ -1,9 +1,8 @@
 # Polish Public Transport Card
 
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-1.4.4-blue.svg)](https://github.com/toczke/polish-public-transport-card/releases)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](https://github.com/toczke/polish-public-transport-card/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-52%20passing-brightgreen.svg)](#testing)
 
 Home Assistant integration + Lovelace card for real-time departures across Poland — Warszawa, Tricity, Kraków, Poznań, Szczecin, Katowice/GZM, Łódź, Lublin, and 30+ more cities.
 
@@ -13,6 +12,8 @@ Home Assistant integration + Lovelace card for real-time departures across Polan
 - [Display Presets](#display-presets)
 - [Supported Operators](#supported-operators)
 - [Features](#features)
+- [What's New in 1.5.0](#whats-new-in-150)
+- [Live Vehicle Map](#live-vehicle-map)
 - [Installation](#installation)
 - [Setup](#setup)
 - [Card Configuration](#card-configuration)
@@ -65,7 +66,7 @@ Home Assistant integration + Lovelace card for real-time departures across Polan
 
 | Operator | Area | API / Data Source | Realtime | Vehicle Info |
 |---|---|---|:---:|---|
-| [ZTM Gdańsk](https://ztm.gda.pl) | Gdańsk (bus, tram) | TRISTAR CKAN API (`ckan2.multimediagdansk.pl`) | ✅ | bike, wheelchair, AC, USB, ticket machine, side number |
+| [ZTM Gdańsk](https://ztm.gda.pl) | Gdańsk (bus, tram) | TRISTAR CKAN API (`ckan2.multimediagdansk.pl`) | ✅ | GPS map, bike, wheelchair, AC, USB, ticket machine, side number |
 | [ZKM Gdynia](https://zkmgdynia.pl) | Gdynia (bus, trolleybus) | ZDiZ API (`api.zdiz.gdynia.pl`) | ✅ | side number |
 | [MZK Wejherowo](https://mzkwejherowo.pl) | Wejherowo (bus) | Static GTFS (`mkuran.pl/gtfs/wejherowo.zip`) | ❌ | — |
 | [MZK Tczew](https://mzk.tczew.pl) | Tczew (bus) | Time4BUS API (`time4bus.com`) | ✅ | wheelchair, AC, ticket machine, side number |
@@ -81,23 +82,23 @@ Home Assistant integration + Lovelace card for real-time departures across Polan
 | [Komunikacja Bytów](https://bytow.kiedyprzyjedzie.pl) | Bytów (city bus) | kiedyPrzyjedzie API (`bytow.kiedyprzyjedzie.pl`) | ✅ | bike, wheelchair, AC, ticket machine |
 | [Powiat Człuchowski](https://czluchow.kiedyprzyjedzie.pl) | Człuchów region (bus) | kiedyPrzyjedzie API (`czluchow.kiedyprzyjedzie.pl`) | ✅ | bike, wheelchair, AC, ticket machine |
 | [PKP / SKM / Polregio / IC](https://portalpasazera.pl) | Railway stations | PLK OpenData API (`pdp-api.plk-sa.pl`) | ✅ | platform, track, carrier, train number, cancellation |
-| [MPK Łódź](https://mpk.lodz.pl) | Łódź (bus, tram) | rozklady.lodz.pl XML API | ✅ | bike, wheelchair, AC, ticket machine |
-| [ZTM Poznań](https://ztm.poznan.pl) | Poznań (bus, tram) | GTFS + GTFS-RT (`ztm.poznan.pl`) | ✅ | ramp, AC, bike, ticket machine, USB (vehicle dict) |
-| [ZTM GZM (Katowice)](https://metropoliagzm.pl) | Metropolia GZM (bus, tram) | GTFS + GTFS-RT (`otwartedane.metropoliagzm.pl`) | ✅ | low floor (from GTFS ext) |
+| [MPK Łódź](https://mpk.lodz.pl) | Łódź (bus, tram) | XML + GTFS + GTFS-RT | ✅ | GPS map, bike, wheelchair, AC, ticket machine |
+| [ZTM Poznań](https://ztm.poznan.pl) | Poznań (bus, tram) | GTFS + GTFS-RT (`ztm.poznan.pl`) | ✅ | GPS map, ramp, AC, bike, ticket machine, USB |
+| [ZTM GZM (Katowice)](https://metropoliagzm.pl) | Metropolia GZM (bus, tram) | GTFS + GTFS-RT (`otwartedane.metropoliagzm.pl`) | ✅ | GPS map, low floor |
 | [ZTP Kraków](https://ztp.krakow.pl) | Kraków (bus, tram) | zbiorkom.live API (`api.zbiorkom.live`) | ✅ | side number, realtime delay |
-| [ZTM Lublin](https://ztm.lublin.eu) | Lublin (bus, trolleybus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | side number |
-| [MPK Kielce](https://mpk.kielce.pl) | Kielce (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | side number |
-| [MPK Częstochowa](https://mpk.czest.pl) | Częstochowa (bus, tram) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | side number |
-| [ZKM Elbląg](https://zkm.elblag.com.pl) | Elbląg (bus, tram) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | side number |
-| [MZK Gorzów Wlkp.](https://mzk-gorzow.com.pl) | Gorzów (bus, tram) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | side number |
-| [ZTZ Rybnik](https://ztz.rybnik.pl) | Rybnik (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | side number |
-| [MZDiK Radom](https://mzdik.radom.pl) | Radom (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | side number |
-| [PGK Suwałki](https://pgk.suwalki.pl) | Suwałki (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | side number |
-| [MZK Przemyśl](https://mzk.przemysl.pl) | Przemyśl (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | side number |
-| [MZK Kutno](https://mzkkutno.pl) | Kutno (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | side number |
-| [MPK Legnica](https://mpk.legnica.pl) | Legnica (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | side number |
-| [ZDiTM Szczecin](https://zditm.szczecin.pl) | Szczecin (bus, tram) | GTFS + GTFS-RT (`zditm.szczecin.pl`) | ✅ | side number |
-| [ZTM Warszawa](https://ztm.waw.pl) | Warszawa (bus, tram, metro) | GTFS + GTFS-RT (`mkuran.pl`) | ✅ | side number |
+| [ZTM Lublin](https://ztm.lublin.eu) | Lublin (bus, trolleybus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | GPS map, side number |
+| [MPK Kielce](https://mpk.kielce.pl) | Kielce (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | GPS map, side number |
+| [MPK Częstochowa](https://mpk.czest.pl) | Częstochowa (bus, tram) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | GPS map, side number |
+| [ZKM Elbląg](https://zkm.elblag.com.pl) | Elbląg (bus, tram) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | GPS map, side number |
+| [MZK Gorzów Wlkp.](https://mzk-gorzow.com.pl) | Gorzów (bus, tram) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | GPS map, side number |
+| [ZTZ Rybnik](https://ztz.rybnik.pl) | Rybnik (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | GPS map, side number |
+| [MZDiK Radom](https://mzdik.radom.pl) | Radom (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | GPS map, side number |
+| [PGK Suwałki](https://pgk.suwalki.pl) | Suwałki (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | GPS map, side number |
+| [MZK Przemyśl](https://mzk.przemysl.pl) | Przemyśl (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | GPS map, side number |
+| [MZK Kutno](https://mzkkutno.pl) | Kutno (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | GPS map, side number |
+| [MPK Legnica](https://mpk.legnica.pl) | Legnica (bus) | GTFS + GTFS-RT (`cdn.zbiorkom.live`) | ✅ | GPS map, side number |
+| [ZDiTM Szczecin](https://zditm.szczecin.pl) | Szczecin (bus, tram) | GTFS + GTFS-RT (`zditm.szczecin.pl`) | ✅ | GPS map, side number |
+| [ZTM Warszawa](https://ztm.waw.pl) | Warszawa (bus, tram, metro) | GTFS + GTFS-RT (`mkuran.pl`) | ✅ | GPS map, side number |
 | [MZK Ełk](https://mzk.elk.pl) | Ełk (bus) | GTFS + GTFS-RT (`mkuran.pl`) | ✅ | side number |
 | [WKD](https://wkd.com.pl) | Warszawa–Grodzisk Maz. (rail) | GTFS + GTFS-RT (`mkuran.pl`) | ✅ | — |
 | [BKM Białystok](https://bkm.bialystok.pl) | Białystok (bus) | Static GTFS (`cdn.zbiorkom.live`) | ❌ | — |
@@ -123,6 +124,28 @@ Home Assistant integration + Lovelace card for real-time departures across Polan
 - **Next-day fallback** — when no departures remain today, shows tomorrow's schedule (GTFS-RT providers)
 - **Retry with backoff** — all providers retry failed requests 3× with exponential backoff (1s, 3s, 7s)
 - **Multi-stop per operator** — one integration hub per carrier, stops grouped as child devices
+- **Live vehicle map** — map modal with a polling marker when a departure includes valid GPS coordinates
+
+## What's New in 1.5.0
+
+- Renamed the primary Lovelace element to `custom:polish-transport-card` while retaining the legacy `custom:mzkzg-transport-card` alias.
+- Added live vehicle maps for Gdańsk, Łódź and position-enabled GTFS-RT providers, including GZM, Poznań, Szczecin and Warszawa.
+- Added coordinate validation and keyboard access to positioned departure rows.
+- Added ZTM Gdańsk schedule fallback and realtime-preferred departure deduplication.
+- Reworked MPK Łódź with grouped stop boards, GTFS schedule fallback, GTFS-RT delays and vehicle positions.
+- Added configurable `fallback_min` for Łódź and translated its options-flow label.
+- Added multi-stop integration entries, sleep mode, provider health sensors and retry with backoff.
+- Corrected GZM archive selection and VehiclePositions protobuf handling.
+- Corrected next-day GTFS service filtering and Łódź stop-code selection.
+- Updated runtime GTFS-RT bindings and the frontend test toolchain.
+
+## Live Vehicle Map
+
+When a departure contains a valid live position, its row opens a map on click, Enter or Space. The marker is refreshed from the same Home Assistant sensor every 30 seconds while the map is open.
+
+Map availability depends on the upstream feed exposing a vehicle identifier that can be matched between TripUpdates/departures and VehiclePositions. A provider marked as GPS-capable may therefore have individual departures without a map when the source omits a position or vehicle ID.
+
+The map loads Leaflet 1.9.4 from `unpkg.com` and CARTO/OpenStreetMap tiles. Home Assistant clients must be able to reach those services. For positioned rows, opening the map takes precedence over `tap_action`; hold and double-tap actions remain available.
 
 ## Installation
 
@@ -149,7 +172,9 @@ For PLK provider, add API key from `https://pdp-api.plk-sa.pl`.
 
 ## Card Configuration
 
-**Add Card → MZKZG Transport Card** — the card registers itself automatically.
+**Add Card → Polish Transport Card** — the card registers itself automatically.
+
+Existing YAML using `custom:mzkzg-transport-card` remains supported. New configurations should use `custom:polish-transport-card`.
 
 ### Main Options
 
@@ -158,7 +183,7 @@ For PLK provider, add API key from `https://pdp-api.plk-sa.pl`.
 | `entities` | Sensor entities (string or object with per-sensor overrides) | required |
 | `display_preset` | `standard` / `compact` / `e_ink` | `standard` |
 | `view_mode` | `mixed` / `tabs` | `mixed` |
-| `max_departures` | Max rows (3–20) | `10` |
+| `max_departures` | Max rows (1–20) | `10` |
 | `filter_routes` | Route filter | — |
 | `destination_filter` | Destination filter | — |
 | `filter_platform` | Platform filter | — |
@@ -169,6 +194,8 @@ For PLK provider, add API key from `https://pdp-api.plk-sa.pl`.
 | `tap_action` | Row tap action | `more-info` |
 | `hold_action` | Row hold/right-click action | `none` |
 | `double_tap_action` | Row double-tap action | `none` |
+
+For MPK Łódź, integration options also expose `fallback_min` (1–30), which controls when scheduled GTFS departures supplement the live stop board.
 
 ### Per-sensor overrides
 
@@ -203,12 +230,13 @@ Counters are restored after Home Assistant restart.
 
 | Provider | Endpoints | Polling Interval |
 |---|---|---|
-| ZTM Gdańsk | `GET /departures?stopId=X` (realtime) + fleet cache from `baza-pojazdow.json` (weekly) | 30s |
+| ZTM Gdańsk | realtime departures + GPS positions + static GTFS fallback + fleet cache | 30s |
 | ZKM Gdynia | `GET /pt/delays?stopId=X` (realtime) + `GET /pt/routes` (route names, cached) | 30s |
 | MZK Wejherowo | Static GTFS zip download (`mkuran.pl`), parsed locally | 30s (local lookup) |
 | Time4BUS Tczew | `GET /live/schedules/tczew/stops/X/departures` → fallback to `GET /operators/tczew/stops/X/departures?date=Y` | 30s |
 | kiedyPrzyjedzie | `GET /api/departures/{stop_id}` per carrier subdomain | 30s |
-| GTFS-RT (Poznań, GZM, +10) | Static GTFS zip (daily cache) + GTFS-RT TripUpdates protobuf (per poll) + vehicle dict (cached) | 30s |
+| GTFS-RT (Poznań, GZM, +13) | Static GTFS zip (daily cache) + TripUpdates + optional VehiclePositions/JSON GPS + vehicle dictionary | 30s |
+| MPK Łódź | XML stop boards + static GTFS fallback + GTFS-RT delays and VehiclePositions | 30s |
 | ZTP Kraków | zbiorkom.live departures API (realtime + schedule) | 30s |
 | PLK Rail | `GET /operations` (shared, all stations) + `GET /schedules` (per station, daily cache) | Dynamic (see below) |
 
@@ -245,6 +273,7 @@ python -m pytest tests/ -m gdynia       # ZKM Gdynia
 python -m pytest tests/ -m tczew        # Time4Bus Tczew
 python -m pytest tests/ -m kiedyprzyjedzie  # kiedyPrzyjedzie providers
 python -m pytest tests/ -m gtfsrt       # GTFS-RT providers
+python -m pytest tests/ -m lodz         # MPK Łódź
 python -m pytest tests/ -m plk          # PLK rail
 python -m pytest tests/ -m common       # Binary sensor, imports
 ```

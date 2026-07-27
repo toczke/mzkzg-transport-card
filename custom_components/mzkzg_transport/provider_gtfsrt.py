@@ -152,6 +152,7 @@ GTFSRT_CITIES = {
         "gtfs_package_id": "317435cc-0075-4d10-b8ef-6e9b0010e90a",
         "rt_url": "https://gtfsrt.transportgzm.pl:5443/gtfsrt/gzm/tripUpdates",
         "positions_url": "https://gtfsrt.transportgzm.pl:5443/gtfsrt/gzm/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
         "label": "ZTM GZM (Katowice)",
     },
 }
@@ -334,20 +335,55 @@ def _get_tomorrow_departures(gtfs, stop_id, tomorrow, now):
     if not active_services:
         return []
 
-    # Filter trips for tomorrow's services
-    tomorrow_trips = {tid: t for tid, t in gtfs["trips"].items() if t.get("service_id", tid) in active_services}
-    
-    # Get stop_times for this stop, filtered by tomorrow's trips
-    stop_times = gtfs["stop_times"].get(stop_id, [])
+    tomorrow_trips = {}
+    stop_times = []
+    with zipfile.ZipFile(BytesIO(raw)) as zf:
+        header, rows = _read_csv(zf, "trips.txt")
+        if header:
+            tid_idx = header.index("trip_id")
+            rid_idx = header.index("route_id")
+            svc_idx = header.index("service_id")
+            hs_idx = header.index("trip_headsign") if "trip_headsign" in header else -1
+            for parts in rows:
+                if len(parts) <= max(tid_idx, rid_idx, svc_idx):
+                    continue
+                if parts[svc_idx] not in active_services:
+                    continue
+                tomorrow_trips[parts[tid_idx]] = {
+                    "route_id": parts[rid_idx],
+                    "headsign": parts[hs_idx] if hs_idx >= 0 and len(parts) > hs_idx else "",
+                }
+
+        header, rows = _read_csv(zf, "stop_times.txt")
+        if header:
+            tid_idx = header.index("trip_id")
+            sid_idx = header.index("stop_id")
+            time_column = "departure_time" if "departure_time" in header else "arrival_time"
+            time_idx = header.index(time_column)
+            hs_idx = header.index("stop_headsign") if "stop_headsign" in header else -1
+            for parts in rows:
+                if len(parts) <= max(tid_idx, sid_idx, time_idx) or parts[sid_idx] != stop_id:
+                    continue
+                trip_id = parts[tid_idx]
+                trip = tomorrow_trips.get(trip_id)
+                if not trip:
+                    continue
+                try:
+                    h, m, s = map(int, parts[time_idx].split(":"))
+                except (TypeError, ValueError):
+                    continue
+                stop_times.append({
+                    "trip_id": trip_id,
+                    "route_id": trip["route_id"],
+                    "departure_time": (h, m, s),
+                    "headsign": parts[hs_idx] if hs_idx >= 0 and len(parts) > hs_idx else "",
+                })
+
     departures = []
     
     for st in stop_times:
         trip_id = st["trip_id"]
-        if trip_id not in tomorrow_trips and trip_id not in gtfs["trips"]:
-            continue
-        # Check if trip runs tomorrow
-        trip = gtfs["trips"].get(trip_id, {})
-        # For trips without service_id tracking, include all
+        trip = tomorrow_trips[trip_id]
         
         route_id = st["route_id"]
         route_name = gtfs["routes"].get(route_id, {}).get("short_name", route_id)
@@ -931,26 +967,38 @@ async def _enrich_with_gps_positions(coord, session, city_cfg, departures):
                         sn = p.get("side_number")
                         if sn and "lat" in p and "lon" in p:
                             positions[str(sn)] = {"lat": p["lat"], "lng": p["lon"], "bearing": p.get("bearing")}
-        elif url.endswith(".pb"):
-            from google.transit import gtfs_realtime_pb2
+        elif city_cfg.get("positions_format") == "gtfsrt_protobuf" or url.endswith(".pb"):
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=15), ssl=False) as resp:
                 if resp.status == 200:
-                    raw = await resp.read()
-                    feed = gtfs_realtime_pb2.FeedMessage()
-                    feed.ParseFromString(raw)
-                    for entity in feed.entity:
-                        if not entity.HasField("vehicle"):
-                            continue
-                        v = entity.vehicle
-                        vid = v.vehicle.id or v.vehicle.label or ""
-                        vid = vid.split("/")[-1] if "/" in vid else vid
-                        if not vid or not v.HasField("position"):
-                            continue
-                        positions[vid] = {"lat": v.position.latitude, "lng": v.position.longitude, "bearing": v.position.bearing if v.HasField("bearing") else None, "speed": v.position.speed if v.HasField("speed") else None}
+                    positions = _parse_gtfsrt_positions(await resp.read())
         _apply_positions(departures, positions)
         cache[coord.provider] = {"data": positions, "_ts": now_ts}
     except Exception as e:
         _LOGGER.debug("GPS positions failed for %s: %s", coord.provider, e)
+
+
+def _parse_gtfsrt_positions(raw):
+    """Parse a GTFS-RT VehiclePositions payload into positions keyed by vehicle ID."""
+    from google.transit import gtfs_realtime_pb2
+
+    feed = gtfs_realtime_pb2.FeedMessage()
+    feed.ParseFromString(raw)
+    positions = {}
+    for entity in feed.entity:
+        if not entity.HasField("vehicle"):
+            continue
+        vehicle = entity.vehicle
+        vehicle_id = vehicle.vehicle.id or vehicle.vehicle.label or ""
+        vehicle_id = vehicle_id.split("/")[-1] if "/" in vehicle_id else vehicle_id
+        if not vehicle_id or not vehicle.HasField("position"):
+            continue
+        positions[vehicle_id] = {
+            "lat": vehicle.position.latitude,
+            "lng": vehicle.position.longitude,
+            "bearing": vehicle.position.bearing if vehicle.HasField("bearing") else None,
+            "speed": vehicle.position.speed if vehicle.HasField("speed") else None,
+        }
+    return positions
 
 
 def _apply_positions(departures, positions):

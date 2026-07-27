@@ -40,7 +40,8 @@
         "data": {
           "sleep_enabled": "Włącz tryb uśpienia",
           "sleep_start": "Początek uśpienia (GG:MM)",
-          "sleep_end": "Koniec uśpienia (GG:MM)"
+          "sleep_end": "Koniec uśpienia (GG:MM)",
+          "fallback_min": "Minimalna liczba rozkładowych odjazdów dla Łodzi"
         }
       }
     }

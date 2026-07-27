@@ -1,4 +1,4 @@
-# MZKZG Transport Card – example configurations
+# Polish Transport Card - example configurations
 # Requires mzkzg_transport integration (custom_components/mzkzg_transport)
 # Entity format: sensor.mzkzg_{provider}_{stop_id}
 

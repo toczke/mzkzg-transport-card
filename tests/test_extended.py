@@ -397,6 +397,7 @@ def test_plk_update_interval_respects_daily_cap(mock_hass):
 
 # ── MPK Łódź tests ────────────────────────────────────────────────────────────
 
+@pytest.mark.lodz
 @pytest.mark.asyncio
 async def test_lodz_fallback_min_default(mock_hass):
     """Test _fallback_min returns default when coordinator has no options."""
@@ -406,6 +407,7 @@ async def test_lodz_fallback_min_default(mock_hass):
     assert _fallback_min(coordinator) == DEFAULT_FALLBACK_MIN
 
 
+@pytest.mark.lodz
 @pytest.mark.asyncio
 async def test_lodz_fallback_min_custom(mock_hass):
     """Test _fallback_min reads from coordinator options."""
@@ -415,6 +417,7 @@ async def test_lodz_fallback_min_custom(mock_hass):
     assert _fallback_min(coordinator) == 15
 
 
+@pytest.mark.lodz
 def test_lodz_parse_board_xml():
     """Test parsing Łódź stop board XML."""
     from mzkzg_transport.provider_lodz import _parse_board_xml
@@ -468,6 +471,7 @@ def test_lodz_parse_board_xml():
     assert deps[2]["vehicle_code"] == "1200"
 
 
+@pytest.mark.lodz
 def test_lodz_enrich_with_delays():
     """Test GTFS-RT delay enrichment matches by (route, stop_id)."""
     from mzkzg_transport.provider_lodz import _enrich_with_delays
@@ -498,6 +502,7 @@ def test_lodz_enrich_with_delays():
     assert deps[2]["delay_seconds"] == 0
 
 
+@pytest.mark.lodz
 def test_lodz_enrich_no_stop_mapping():
     """Test enrichment does nothing when stop mapping is empty."""
     from mzkzg_transport.provider_lodz import _enrich_with_delays
@@ -512,6 +517,7 @@ def test_lodz_enrich_no_stop_mapping():
     assert deps[0]["realtime"] is False
 
 
+@pytest.mark.lodz
 @pytest.mark.asyncio
 async def test_lodz_fetch_empty_boards_fallback(mock_hass):
     """Test fetch uses GTFS fallback when all API boards fail."""
@@ -539,6 +545,7 @@ async def test_lodz_fetch_empty_boards_fallback(mock_hass):
     assert len(result["departures"]) == 0
 
 
+@pytest.mark.lodz
 @pytest.mark.asyncio
 async def test_lodz_fetch_single_board(mock_hass):
     """Test fetch with single-board stop_id (busStopId:stopNr format)."""
@@ -573,6 +580,7 @@ async def test_lodz_fetch_single_board(mock_hass):
     assert result["departures"][0]["headsign"] == "NOWOSOLNA"
 
 
+@pytest.mark.lodz
 @pytest.mark.asyncio
 async def test_lodz_fetch_rt_preservation(mock_hass):
     """Test that old RT departures are preserved when API returns empty."""
@@ -603,6 +611,7 @@ async def test_lodz_fetch_rt_preservation(mock_hass):
     assert result["departures"][0]["route"] == "53A"
 
 
+@pytest.mark.lodz
 @pytest.mark.asyncio
 async def test_lodz_fetch_enrich_with_delays(mock_hass):
     """Test fetch applies GTFS-RT delays when stop mapping succeeds."""

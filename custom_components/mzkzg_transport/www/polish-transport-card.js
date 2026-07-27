@@ -1,10 +1,10 @@
 /**
- * MZKZG Transport Card
- * Unified Lovelace card for ZTM Gdańsk, ZKM Gdynia and kiedyPrzyjedzie.pl carriers
+ * Polish Transport Card
+ * Unified Lovelace card for Polish public transport providers.
  * Reads data from mzkzg_transport HA integration sensors.
  */
 
-const MZKZG_VERSION = "1.2.7";
+const MZKZG_VERSION = "1.5.0";
 
 const LOCALE = {
   pl: {
@@ -50,6 +50,15 @@ function t(key) {
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[c]);
+}
+
+function parseVehiclePosition(lat, lng) {
+  if (lat == null || lng == null || lat === "" || lng === "") return null;
+  const parsedLat = Number(lat);
+  const parsedLng = Number(lng);
+  if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) return null;
+  if (parsedLat < -90 || parsedLat > 90 || parsedLng < -180 || parsedLng > 180) return null;
+  return [parsedLat, parsedLng];
 }
 
 function minutesUntil(isoStr) {
@@ -609,7 +618,8 @@ class MzkzgTransportCardEditor extends HTMLElement {
   _buildActionConfig(prefix, fallbackAction) {
     const action = (this.shadowRoot.getElementById(`${prefix}_action_type`)?.value || fallbackAction).toLowerCase();
     const value = (this.shadowRoot.getElementById(`${prefix}_action_value`)?.value || "").trim();
-    const cfg = { action };
+    const configKey = prefix === "double_tap" ? "double_tap_action" : `${prefix}_action`;
+    const cfg = { ...(this._config[configKey] || {}), action };
     if (action === "navigate" && value) cfg.navigation_path = value;
     if (action === "url" && value) cfg.url_path = value;
     if ((action === "perform-action" || action === "call-service") && value) cfg.perform_action = value;
@@ -621,12 +631,12 @@ class MzkzgTransportCardEditor extends HTMLElement {
     this._fireTimer = setTimeout(() => this._doFire(), 300);
   }
 
-  _fireNow() {
+  _fireNow(overrideTarget) {
     if (this._fireTimer) clearTimeout(this._fireTimer);
-    this._doFire();
+    this._doFire(overrideTarget);
   }
 
-  _doFire() {
+  _doFire(overrideTarget) {
     const val = id => this.shadowRoot.getElementById(id)?.value ?? "";
     const checked = id => { const el = this.shadowRoot.getElementById(id); return el ? el.checked : (this._config[id.replace(/-/g,"_")] ?? false); };
 
@@ -637,7 +647,7 @@ class MzkzgTransportCardEditor extends HTMLElement {
       return; // Don't fire empty config
     }
     const entityEntryById = this._getEntityEntryById();
-    const targetEntityId = this._getActiveOverrideTarget();
+    const targetEntityId = overrideTarget || this._getActiveOverrideTarget();
     const targetOverride = this._readEntityOverrideFields();
     const entities = selectedEntityIds.map(eid => {
       const existing = entityEntryById.get(eid);
@@ -992,9 +1002,10 @@ class MzkzgTransportCardEditor extends HTMLElement {
     // Per-sensor target just switches editor fields (save current before switching)
     const perSensorTarget = this.shadowRoot.getElementById("entity_filter_target");
     if (perSensorTarget) {
+      let activeOverrideTarget = perSensorTarget.value;
       perSensorTarget.addEventListener("change", () => {
-        // Save overrides for previously active entity before switching
-        this._fireNow();
+        this._fireNow(activeOverrideTarget);
+        activeOverrideTarget = perSensorTarget.value;
         this._setEntityOverrideFieldsFor(perSensorTarget.value);
       });
     }
@@ -1022,7 +1033,7 @@ if (!customElements.get("mzkzg-transport-card-editor")) {
   customElements.define("mzkzg-transport-card-editor", MzkzgTransportCardEditor);
 }
 if (!customElements.get("polish-transport-card-editor")) {
-  customElements.define("polish-transport-card-editor", MzkzgTransportCardEditor);
+  customElements.define("polish-transport-card-editor", class extends MzkzgTransportCardEditor {});
 }
 
 /* ── Card ────────────────────────────────────────────────────────────────── */
@@ -1324,10 +1335,10 @@ class MzkzgTransportCard extends HTMLElement {
     const state = this._hass.states[ctx.entityId];
     if (!state?.attributes?.departures) return;
     for (const d of state.attributes.departures) {
-      if (d.vehicle_code && d.vehicle_code === ctx.vehicleCode && d.vehicle_lat != null && d.vehicle_lng != null) {
-        const newLat = parseFloat(d.vehicle_lat);
-        const newLng = parseFloat(d.vehicle_lng);
-        if (isNaN(newLat) || isNaN(newLng)) return;
+      if (d.vehicle_code && d.vehicle_code === ctx.vehicleCode) {
+        const position = parseVehiclePosition(d.vehicle_lat, d.vehicle_lng);
+        if (!position) continue;
+        const [newLat, newLng] = position;
         const curPos = ctx.marker.getLatLng();
         if (Math.abs(curPos.lat - newLat) < 0.00001 && Math.abs(curPos.lng - newLng) < 0.00001) return;
         ctx.marker.setLatLng([newLat, newLng]);
@@ -1517,6 +1528,20 @@ class MzkzgTransportCard extends HTMLElement {
       let holdTimer = null;
       let held = false;
       let tapTimer = null;
+      const showMap = () => {
+        const position = parseVehiclePosition(
+          row.getAttribute("data-vehicle-lat"),
+          row.getAttribute("data-vehicle-lng")
+        );
+        if (!position) return false;
+        this._showVehicleMap(position[0], position[1], {
+          route: row.getAttribute("data-vehicle-route") || "",
+          code: row.getAttribute("data-vehicle-code") || "",
+          delay: parseInt(row.getAttribute("data-vehicle-delay")) || 0,
+          entityId: row.getAttribute("data-entity-id") || this._config.entities?.[0]?.entity || "",
+        });
+        return true;
+      };
 
       row.addEventListener("pointerdown", () => {
         held = false;
@@ -1532,17 +1557,7 @@ class MzkzgTransportCard extends HTMLElement {
 
       row.addEventListener("click", () => {
         if (held) return;
-        const lat = row.getAttribute("data-vehicle-lat");
-        const lng = row.getAttribute("data-vehicle-lng");
-        if (lat && lng) {
-          this._showVehicleMap(parseFloat(lat), parseFloat(lng), {
-            route: row.getAttribute("data-vehicle-route") || "",
-            code: row.getAttribute("data-vehicle-code") || "",
-            delay: parseInt(row.getAttribute("data-vehicle-delay")) || 0,
-            entityId: (row.getAttribute("data-entity-id") || this._config.entities?.[0]?.entity || ""),
-          });
-          return;
-        }
+        if (showMap()) return;
         const dblAction = this._resolveActionConfig("double");
         if (dblAction.action === "none") {
           this._handleRowAction("tap", entityId);
@@ -1558,7 +1573,7 @@ class MzkzgTransportCard extends HTMLElement {
       row.addEventListener("keydown", e => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          this._handleRowAction("tap", entityId);
+          if (!showMap()) this._handleRowAction("tap", entityId);
         }
       });
       row.addEventListener("contextmenu", e => {
@@ -1577,7 +1592,7 @@ class MzkzgTransportCard extends HTMLElement {
     const el = this.shadowRoot?.querySelector(".dep-list");
     if (el) {
       const html = this._renderDeps();
-      const hash = html.length + html.slice(0, 200);
+      const hash = html;
       if (hash !== this._lastDepsHash) {
         this._lastDepsHash = hash;
         el.innerHTML = html;
@@ -1708,12 +1723,13 @@ class MzkzgTransportCard extends HTMLElement {
       }
 
       const rowLabel = `${d.route} → ${d.headsign}, ${formatTime(d.estimated_time || d.theoretical_time)}${mins !== null && mins >= 0 ? ` (${mins} ${t("min")})` : ""}`;
-      const hasPos = d.vehicle_lat != null && d.vehicle_lng != null;
+      const hasPos = parseVehiclePosition(d.vehicle_lat, d.vehicle_lng) !== null;
+      const isInteractive = hasRowActions || hasPos;
       const extras = hasPos
         ? ` data-vehicle-lat="${escapeHtml(String(d.vehicle_lat))}" data-vehicle-lng="${escapeHtml(String(d.vehicle_lng))}" data-vehicle-code="${escapeHtml(d.vehicle_code || "")}" data-vehicle-route="${escapeHtml(d.route)}" data-vehicle-delay="${delayMin}"`
         : "";
       const rowAttrs = `data-entity-id="${escapeHtml(d._entityId || "")}"`;
-      return `<div class="dep-row${hasRowActions ? " interactive" : ""}${imminent ? " imminent" : ""}${d._dimmed ? " dimmed" : ""}${cancelled ? " cancelled" : ""}" ${hasRowActions ? `tabindex="0" role="button" aria-label="${escapeHtml(rowLabel)}"` : ""}${rowAttrs}${extras}>
+      return `<div class="dep-row${isInteractive ? " interactive" : ""}${imminent ? " imminent" : ""}${d._dimmed ? " dimmed" : ""}${cancelled ? " cancelled" : ""}" ${isInteractive ? `tabindex="0" role="button" aria-label="${escapeHtml(rowLabel)}"` : ""}${rowAttrs}${extras}>
         <span class="badge" style="background:${routeColor(d.route, d._provider || d.provider)}">${escapeHtml(d.route)}</span>
         <span class="headsign"><span class="head-main"><span class="headsign-text">${escapeHtml(d.headsign)}</span>${vehicleChip}</span>${metaRow}${trainInfo || (showStop ? `<span class="stop-name">${escapeHtml(cleanStopName)}</span>` : "")}</span>
         <div class="time-col">${timeHTML}</div>
@@ -1737,7 +1753,7 @@ if (!customElements.get("mzkzg-transport-card")) {
   customElements.define("mzkzg-transport-card", MzkzgTransportCard);
 }
 if (!customElements.get("polish-transport-card")) {
-  customElements.define("polish-transport-card", MzkzgTransportCard);
+  customElements.define("polish-transport-card", class extends MzkzgTransportCard {});
 }
 
 window.customCards = window.customCards || [];
@@ -1746,7 +1762,7 @@ window.customCards.push({
   name: "Polish Transport Card",
   description: "Tablica odjazdów polskiej komunikacji miejskiej (dane z integracji mzkzg_transport)",
   preview: true,
-  documentationURL: "https://github.com/toczke/mzkzg-transport-card",
+  documentationURL: "https://github.com/toczke/polish-public-transport-card",
 });
 
 console.info(
