@@ -1,7 +1,7 @@
 # Polish Public Transport Card
 
 [![HACS](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-1.4.3-blue.svg)](https://github.com/toczke/polish-public-transport-card/releases)
+[![Version](https://img.shields.io/badge/version-1.4.4-blue.svg)](https://github.com/toczke/polish-public-transport-card/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-52%20passing-brightgreen.svg)](#testing)
 

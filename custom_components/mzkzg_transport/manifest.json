@@ -1,16 +1,12 @@
 {
   "domain": "mzkzg_transport",
   "name": "Polish Public Transport",
-  "codeowners": [
-    "@toczke"
-  ],
+  "codeowners": ["@toczke"],
   "config_flow": true,
   "documentation": "https://github.com/toczke/polish-public-transport-card",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/toczke/polish-public-transport-card/issues",
-  "requirements": [
-    "gtfs-realtime-bindings==2.0.0"
-  ],
-  "version": "1.4.3",
+  "requirements": ["gtfs-realtime-bindings==2.0.0"],
+  "version": "1.4.4",
   "integration_type": "hub"
 }

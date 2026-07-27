@@ -8,8 +8,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from mzkzg_transport.provider_gtfsrt import (
+    _calendar_covers,
+    _get_gzm_gtfs_url,
     _parse_gtfs_zip,
     _parse_stop_times_for,
+    _peek_zip_member,
     _get_rt_delays,
     _parse_rt_feed,
     fetch,
@@ -23,8 +26,13 @@ def _make_gtfs_zip(
     routes=None,
     trips=None,
     stop_times=None,
+    pad=0,
 ):
-    """Create a minimal in-memory GTFS zip."""
+    """Create a minimal in-memory GTFS zip.
+
+    ``pad`` appends an uncompressed filler member so the archive exceeds the tail window
+    used by the range-request peek, exercising the sparse-reconstruction path.
+    """
     buf = BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         if calendar is not None:
@@ -39,6 +47,8 @@ def _make_gtfs_zip(
             zf.writestr("trips.txt", trips)
         if stop_times is not None:
             zf.writestr("stop_times.txt", stop_times)
+        if pad:
+            zf.writestr("shapes.txt", "x" * pad)
     return buf.getvalue()
 
 
@@ -434,5 +444,201 @@ class TestFetchDeduplication:
         assert 60 in deps   # T1 matched by stop_id
         assert 90 in deps   # T2 matched by stop_sequence
         assert 120 in deps  # T3 matched by trip_id fallback
+
+
+CKAN_URL_PREFIX = "https://otwartedane.metropoliagzm.pl/api/3/action/package_show"
+
+
+class _RangeResponse:
+    """Async-context response backing _FakeCkanSession."""
+
+    def __init__(self, session, url, headers):
+        self._session = session
+        self._url = url
+        self._headers = headers or {}
+        self.status = 404
+        self._body = b""
+
+        if url.startswith(CKAN_URL_PREFIX):
+            self.status = 200
+            self._json = session.ckan
+            return
+
+        blob = session.files.get(url)
+        if blob is None:
+            return
+
+        rng = self._headers.get("Range")
+        if rng and session.supports_ranges:
+            start, end = rng.removeprefix("bytes=").split("-")
+            start, end = int(start), int(end)
+            self._body = blob[start:end + 1]
+            self.status = 206
+        else:
+            # Server ignoring Range: hands back the entire archive.
+            self._body = blob
+            self.status = 200
+        session.bytes_served += len(self._body)
+
+    async def read(self):
+        return self._body
+
+    async def json(self):
+        return self._json
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class _FakeCkanSession:
+    """Serves a CKAN package_show payload plus range-readable zip archives."""
+
+    def __init__(self, ckan, files, supports_ranges=True):
+        self.ckan = ckan
+        self.files = files
+        self.supports_ranges = supports_ranges
+        self.bytes_served = 0
+
+    def get(self, url, headers=None, **kwargs):
+        return _RangeResponse(self, url, headers)
+
+
+def _calendar_for(service_id, start, end):
+    """calendar.txt whose service runs every weekday within [start, end]."""
+    return f"{CALENDAR_HEADER}\n{service_id},1,1,1,1,1,1,1,{start},{end}"
+
+
+def _resource(name, url, size, last_modified):
+    return {
+        "name": name,
+        "url": url,
+        "size": size,
+        "format": "ZIP",
+        "last_modified": last_modified,
+    }
+
+
+@pytest.mark.gtfsrt
+class TestGzmGtfsUrl:
+    """GZM publishes one archive per service day — pick the one covering today (issue #13)."""
+
+    def _build(self, supports_ranges=True):
+        today = date.today()
+        future = today + timedelta(days=6)
+
+        # Archive listed first, but its calendar only covers a future week.
+        other = _make_gtfs_zip(
+            calendar=_calendar_for("8", future.strftime("%Y%m%d"), (future + timedelta(days=1)).strftime("%Y%m%d")),
+            pad=200_000,
+        )
+        # Archive covering today, listed later and published earlier.
+        todays = _make_gtfs_zip(
+            calendar=_calendar_for("8", _today_str(), _today_str()),
+            pad=200_000,
+        )
+
+        files = {"http://gzm/other.zip": other, "http://gzm/today.zip": todays}
+        ckan = {
+            "result": {
+                "resources": [
+                    {"name": "Specyfikacja.pdf", "url": "http://gzm/spec.pdf", "format": "PDF", "size": 10},
+                    _resource("schedule_ZTM_other.zip", "http://gzm/other.zip", len(other), "2026-07-14T16:15:02"),
+                    _resource("schedule_ZTM_today.zip", "http://gzm/today.zip", len(todays), "2026-07-14T09:00:00"),
+                ]
+            }
+        }
+        return _FakeCkanSession(ckan, files, supports_ranges), files
+
+    @pytest.mark.asyncio
+    async def test_picks_archive_covering_target_date(self):
+        """Regression #13: the first-listed archive covers a different day, so it must be skipped."""
+        session, _ = self._build()
+
+        url = await _get_gzm_gtfs_url(session, "pkg-id", date.today())
+
+        assert url == "http://gzm/today.zip"
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_today(self):
+        """Omitting target_date resolves to today (the config flow calls it this way)."""
+        session, _ = self._build()
+
+        url = await _get_gzm_gtfs_url(session, "pkg-id")
+
+        assert url == "http://gzm/today.zip"
+
+    @pytest.mark.asyncio
+    async def test_does_not_download_whole_archives(self):
+        """Selection peeks calendar.txt by range instead of pulling every 10 MB archive."""
+        session, files = self._build()
+
+        await _get_gzm_gtfs_url(session, "pkg-id", date.today())
+
+        assert session.bytes_served < sum(len(b) for b in files.values())
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_no_archive_covers_date(self):
+        """With no matching archive, fall back to the most recently published one."""
+        session, _ = self._build()
+
+        url = await _get_gzm_gtfs_url(session, "pkg-id", date.today() + timedelta(days=90))
+
+        assert url == "http://gzm/other.zip"
+
+    @pytest.mark.asyncio
+    async def test_works_when_server_ignores_range(self):
+        """Servers that ignore Range return the full archive — selection must still work."""
+        session, _ = self._build(supports_ranges=False)
+
+        url = await _get_gzm_gtfs_url(session, "pkg-id", date.today())
+
+        assert url == "http://gzm/today.zip"
+
+
+@pytest.mark.gtfsrt
+class TestPeekZipMember:
+    """Tests for the range-request zip reader."""
+
+    @pytest.mark.asyncio
+    async def test_reads_member_from_large_archive(self):
+        """Reads a member sitting outside the tail window without fetching the whole file."""
+        calendar = _calendar_for("SVC1", "20240101", "20271231")
+        blob = _make_gtfs_zip(calendar=calendar, pad=200_000)
+        session = _FakeCkanSession({}, {"http://gzm/a.zip": blob})
+
+        text = await _peek_zip_member(session, "http://gzm/a.zip", len(blob), "calendar.txt")
+
+        assert text.strip() == calendar
+        assert session.bytes_served < len(blob)
+
+    @pytest.mark.asyncio
+    async def test_missing_member_raises_keyerror(self):
+        """A missing member surfaces as KeyError so the caller can skip the candidate."""
+        blob = _make_gtfs_zip(stops="stop_id,stop_name\nS1,Stop", pad=200_000)
+        session = _FakeCkanSession({}, {"http://gzm/a.zip": blob})
+
+        with pytest.raises(KeyError):
+            await _peek_zip_member(session, "http://gzm/a.zip", len(blob), "calendar.txt")
+
+
+@pytest.mark.gtfsrt
+class TestCalendarCovers:
+    """Tests for _calendar_covers."""
+
+    def test_true_when_service_runs_on_date(self):
+        cal = _calendar_for("8", "20260714", "20260715")
+        assert _calendar_covers(cal, date(2026, 7, 14)) is True
+
+    def test_false_outside_date_range(self):
+        cal = _calendar_for("8", "20260720", "20260721")
+        assert _calendar_covers(cal, date(2026, 7, 14)) is False
+
+    def test_false_when_weekday_not_served(self):
+        # 2026-07-14 is a Tuesday; this service runs Mondays only.
+        cal = f"{CALENDAR_HEADER}\n8,1,0,0,0,0,0,0,20260101,20261231"
+        assert _calendar_covers(cal, date(2026, 7, 14)) is False
 
 
