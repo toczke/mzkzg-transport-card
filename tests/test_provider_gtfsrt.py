@@ -669,3 +669,177 @@ class TestCalendarCovers:
         assert _calendar_covers(cal, date(2026, 7, 14)) is False
 
 
+
+
+@pytest.mark.gtfsrt
+def test_apply_positions_route_id_fallback():
+    """_apply_positions matches by route_id when vehicle_code is missing (Wrocław-like)."""
+    from mzkzg_transport.provider_gtfsrt import _apply_positions
+
+    positions = {
+        "bus1": {"lat": 51.1, "lng": 17.0, "route_id": "A"},
+        "bus2": {"lat": 51.2, "lng": 17.1, "route_id": "B"},
+    }
+    deps = [
+        {"route": "A", "vehicle_code": ""},   # no vehicle_code → fallback by route
+        {"route": "B", "vehicle_code": "bus2"},  # direct match by code
+    ]
+    _apply_positions(deps, positions)
+
+    assert deps[0]["vehicle_lat"] == pytest.approx(51.1)
+    assert deps[0]["vehicle_lng"] == pytest.approx(17.0)
+    assert deps[1]["vehicle_lat"] == pytest.approx(51.2)
+
+@pytest.mark.gtfsrt
+def test_apply_positions_multiple_vehicles_same_route():
+    """Round-robin distributes positions when multiple vehicles share a route."""
+    from mzkzg_transport.provider_gtfsrt import _apply_positions
+
+    positions = {
+        "v1": {"lat": 51.1, "lng": 17.0, "route_id": "A"},
+        "v2": {"lat": 51.2, "lng": 17.1, "route_id": "A"},
+    }
+    deps = [
+        {"route": "A", "vehicle_code": ""},
+        {"route": "A", "vehicle_code": ""},
+        {"route": "A", "vehicle_code": ""},
+    ]
+    _apply_positions(deps, positions)
+    # Round-robin: v1, v2, v1
+    assert deps[0]["vehicle_lat"] == pytest.approx(51.1)
+    assert deps[1]["vehicle_lat"] == pytest.approx(51.2)
+    assert deps[2]["vehicle_lat"] == pytest.approx(51.1)
+
+@pytest.mark.gtfsrt
+def test_parse_gtfsrt_positions_includes_route_id():
+    """_parse_gtfsrt_positions stores route_id from trip.route_id."""
+    from google.transit import gtfs_realtime_pb2
+    from mzkzg_transport.provider_gtfsrt import _parse_gtfsrt_positions
+
+    feed = gtfs_realtime_pb2.FeedMessage()
+    feed.header.gtfs_realtime_version = "2.0"
+    entity = feed.entity.add()
+    entity.id = "v1"
+    entity.vehicle.vehicle.id = "bus42"
+    entity.vehicle.trip.route_id = "42A"
+    entity.vehicle.position.latitude = 50.1
+    entity.vehicle.position.longitude = 19.5
+
+    positions = _parse_gtfsrt_positions(feed.SerializeToString())
+    assert "bus42" in positions
+    assert positions["bus42"]["route_id"] == "42A"
+    assert positions["bus42"]["lat"] == pytest.approx(50.1)
+
+
+@pytest.mark.gtfsrt
+class TestSpeedNormalization:
+    """vehicle_speed is always km/h regardless of source unit."""
+
+    def test_gtfsrt_speed_ms_to_kmh(self):
+        """_apply_positions converts protobuf m/s → km/h."""
+        from mzkzg_transport.provider_gtfsrt import _apply_positions
+
+        positions = {"v1": {"lat": 50.0, "lng": 19.0, "speed": 10.0}}  # 10 m/s
+        deps = [{"vehicle_code": "v1"}]
+        _apply_positions(deps, positions)
+        assert deps[0]["vehicle_speed"] == 36  # 10*3.6 = 36 km/h
+
+    def test_gtfsrt_speed_zero(self):
+        """speed=0 is preserved as 0."""
+        from mzkzg_transport.provider_gtfsrt import _apply_positions
+
+        positions = {"v1": {"lat": 50.0, "lng": 19.0, "speed": 0.0}}
+        deps = [{"vehicle_code": "v1"}]
+        _apply_positions(deps, positions)
+        assert deps[0]["vehicle_speed"] == 0
+
+
+@pytest.mark.gtfsrt
+class TestApplyPositionsRoundRobin:
+    """Round-robin distribution for route_id fallback."""
+
+    def test_round_robin_distributes_fairly(self):
+        from mzkzg_transport.provider_gtfsrt import _apply_positions
+
+        positions = {
+            "v1": {"lat": 50.1, "lng": 19.0, "route_id": "42"},
+            "v2": {"lat": 50.2, "lng": 19.1, "route_id": "42"},
+        }
+        deps = [
+            {"route": "42", "vehicle_code": ""},
+            {"route": "42", "vehicle_code": ""},
+            {"route": "42", "vehicle_code": ""},
+            {"route": "42", "vehicle_code": ""},
+        ]
+        _apply_positions(deps, positions)
+        # v1, v2, v1, v2
+        assert deps[0]["vehicle_lat"] == pytest.approx(50.1)
+        assert deps[1]["vehicle_lat"] == pytest.approx(50.2)
+        assert deps[2]["vehicle_lat"] == pytest.approx(50.1)
+        assert deps[3]["vehicle_lat"] == pytest.approx(50.2)
+
+    def test_vehicle_code_has_priority_over_route_id(self):
+        from mzkzg_transport.provider_gtfsrt import _apply_positions
+
+        positions = {
+            "busX": {"lat": 50.1, "lng": 19.0},
+            "busY": {"lat": 50.2, "lng": 19.1, "route_id": "42"},
+        }
+        deps = [
+            {"route": "42", "vehicle_code": "busX"},
+            {"route": "42", "vehicle_code": ""},
+        ]
+        _apply_positions(deps, positions)
+        assert deps[0]["vehicle_lat"] == pytest.approx(50.1)  # direct match wins
+        assert deps[1]["vehicle_lat"] == pytest.approx(50.2)  # fallback
+
+
+@pytest.mark.gtfsrt
+class TestParseGtfsrtPositionsRouteId:
+    """Tests for route_id extraction in _parse_gtfsrt_positions."""
+
+    def test_route_id_extracted_when_trip_present(self):
+        from google.transit import gtfs_realtime_pb2
+        from mzkzg_transport.provider_gtfsrt import _parse_gtfsrt_positions
+
+        feed = gtfs_realtime_pb2.FeedMessage()
+        feed.header.gtfs_realtime_version = "2.0"
+        e = feed.entity.add()
+        e.id = "v1"
+        e.vehicle.vehicle.id = "bus1"
+        e.vehicle.trip.route_id = "123A"
+        e.vehicle.position.latitude = 50.1
+        e.vehicle.position.longitude = 19.5
+
+        positions = _parse_gtfsrt_positions(feed.SerializeToString())
+        assert positions["bus1"]["route_id"] == "123A"
+
+    def test_route_id_absent_when_no_trip(self):
+        from google.transit import gtfs_realtime_pb2
+        from mzkzg_transport.provider_gtfsrt import _parse_gtfsrt_positions
+
+        feed = gtfs_realtime_pb2.FeedMessage()
+        feed.header.gtfs_realtime_version = "2.0"
+        e = feed.entity.add()
+        e.id = "v2"
+        e.vehicle.vehicle.id = "bus2"
+        e.vehicle.position.latitude = 50.1
+        e.vehicle.position.longitude = 19.5
+
+        positions = _parse_gtfsrt_positions(feed.SerializeToString())
+        assert "route_id" not in positions["bus2"]
+
+    def test_vehicle_id_strips_operator_prefix(self):
+        from google.transit import gtfs_realtime_pb2
+        from mzkzg_transport.provider_gtfsrt import _parse_gtfsrt_positions
+
+        feed = gtfs_realtime_pb2.FeedMessage()
+        feed.header.gtfs_realtime_version = "2.0"
+        e = feed.entity.add()
+        e.id = "v3"
+        e.vehicle.vehicle.id = "operator/GZM-42"
+        e.vehicle.position.latitude = 50.1
+        e.vehicle.position.longitude = 19.5
+
+        positions = _parse_gtfsrt_positions(feed.SerializeToString())
+        assert "GZM-42" in positions

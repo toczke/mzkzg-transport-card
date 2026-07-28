@@ -53,9 +53,10 @@ GTFSRT_CITIES = {
         "label": "MZDiK Radom",
     },
     "gtfsrt_czestochowa": {
-        "gtfs_url": "https://cdn.zbiorkom.live/gtfs/czestochowa.zip",
-        "rt_url": "https://cdn.zbiorkom.live/gtfs-rt/czestochowa.pb",
-        "positions_url": "https://cdn.zbiorkom.live/gtfs-rt/czestochowa.pb",
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/czestochowa/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/czestochowa/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/czestochowa/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
         "label": "MPK Cz\u0119stochowa",
     },
     "gtfsrt_elblag": {
@@ -115,6 +116,7 @@ GTFSRT_CITIES = {
     "gtfsrt_elk": {
         "gtfs_url": "https://mkuran.pl/gtfs/elk.zip",
         "rt_url": "https://mkuran.pl/gtfs/elk.pb",
+        "positions_url": "https://mkuran.pl/gtfs/elk.pb",
         "label": "MZK Ełk",
     },
     "gtfsrt_wkd": {
@@ -123,29 +125,127 @@ GTFSRT_CITIES = {
         "label": "WKD",
     },
     "gtfs_bialystok": {
-        "gtfs_url": "https://cdn.zbiorkom.live/gtfs/bialystok.zip",
-        "rt_url": None,
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/bialystok/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/bialystok/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/bialystok/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
         "label": "BKM Białystok",
     },
     "gtfs_olsztyn": {
-        "gtfs_url": "https://cdn.zbiorkom.live/gtfs/olsztyn.zip",
-        "rt_url": None,
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/olsztyn/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/olsztyn/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/olsztyn/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
         "label": "ZDZiT Olsztyn",
     },
     "gtfs_opole": {
-        "gtfs_url": "https://cdn.zbiorkom.live/gtfs/opole.zip",
-        "rt_url": None,
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/opole/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/opole/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/opole/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
         "label": "MZK Opole",
     },
+    "gtfsrt_wroclaw": {
+        "gtfs_url": "https://cdn.zbiorkom.live/gtfs/wroclaw.zip",
+        "rt_url": "https://mapadlugoleka.klosok.eu/vehicle_positions.pb",
+        "positions_url": "https://mapadlugoleka.klosok.eu/vehicle_positions.pb",
+        "label": "MPK Wroc\u0142aw",
+    },
     "gtfs_rzeszow": {
-        "gtfs_url": "https://cdn.zbiorkom.live/gtfs/rzeszow.zip",
-        "rt_url": None,
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/rzeszow/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/rzeszow/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/rzeszow/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
         "label": "ZTM Rzeszów",
+    },
+        "gtfs_kalisz": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/kalisz/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/kalisz/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/kalisz/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MZK Kalisz",
+    },
+    "gtfs_konin": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/konin/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/konin/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/konin/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MZK Konin",
+    },
+    "gtfs_koszalin": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/koszalin/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/koszalin/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/koszalin/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MZK Koszalin",
+    },
+    "gtfs_krosno": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/krosno/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/krosno/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/krosno/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MKS Krosno",
+    },
+    "gtfs_pila": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/pila/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/pila/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/pila/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MZK Piła",
+    },
+    "gtfs_plock": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/plock/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/plock/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/plock/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "KM Płock",
+    },
+    "gtfs_siedlce": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/siedlce/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/siedlce/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/siedlce/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MPK Siedlce",
+    },
+    "gtfs_starachowice": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/starachowice/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/starachowice/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/starachowice/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MZK Starachowice",
+    },
+    "gtfs_tarnow": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/tarnow/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/tarnow/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/tarnow/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MPK Tarnów",
+    },
+    "gtfs_walbrzych": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/walbrzych/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/walbrzych/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/walbrzych/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "ZKM Wałbrzych",
+    },
+    "gtfs_swinoujscie": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/swinoujscie/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/swinoujscie/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/swinoujscie/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "KA Świnoujście",
     },
     "gtfs_leszno": {
         "gtfs_url": "https://cdn.zbiorkom.live/gtfs/leszno.zip",
         "rt_url": None,
         "label": "MZK Leszno",
+    },
+    "gtfsrt_torun": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/torun/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/torun/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/torun/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MZK Toruń",
     },
     "gtfsrt_gzm": {
         "gtfs_url": None,  # Dynamic - fetched from CKAN API
@@ -155,10 +255,16 @@ GTFSRT_CITIES = {
         "positions_format": "gtfsrt_protobuf",
         "label": "ZTM GZM (Katowice)",
     },
+    "mpk_lodz": {
+        "gtfs_url": "https://otwarte.miasto.lodz.pl/wp-content/uploads/2025/06/GTFS.zip",
+        "rt_url": "https://otwarte.miasto.lodz.pl/wp-content/uploads/2025/06/trip_updates.bin",
+        "positions_url": "https://otwarte.miasto.lodz.pl/wp-content/uploads/2025/06/vehicle_positions.bin",
+        "label": "MPK \u0141\u00f3d\u017a",
+    },
 }
 
 
-async def fetch(coord) -> dict:
+async def fetch(coord: "MzkzgTransportCoordinator") -> dict:
     """Fetch departures using static GTFS + GTFS-RT TripUpdates."""
     session = await coord._get_session()
     now = dt_util.now()
@@ -205,7 +311,9 @@ async def fetch(coord) -> dict:
         vehicle_code = ""
         rt_key = f"{trip_id}_{coord.stop_id}"
         rt_key_seq = f"{trip_id}_seq{st.get('stop_sequence', '')}"
-        for key in (rt_key, rt_key_seq, trip_id):
+        rt_key_route = f"route_{route_id}_{coord.stop_id}"
+        rt_key_route_only = f"route_{route_id}"
+        for key in (rt_key, rt_key_seq, trip_id, rt_key_route, rt_key_route_only):
             if key in delays:
                 delay_sec, vehicle_code = delays[key]
                 is_realtime = True
@@ -223,6 +331,7 @@ async def fetch(coord) -> dict:
             "realtime": is_realtime,
             "vehicle_type": gtfs["routes"].get(route_id, {}).get("type", "bus"),
             "vehicle_code": vehicle_code if is_realtime else None,
+            "trip_id": trip_id,
             "wheelchair_accessible": trip_data.get("wheelchair"),
             "bike_allowed": trip_data.get("bike"),
             "provider": coord.provider,
@@ -250,6 +359,12 @@ async def fetch(coord) -> dict:
                 d["usb"] = v.get("usb_charger")
                 if v.get("vehicle_model"):
                     d["vehicle_model"] = v["vehicle_model"]
+                if v.get("floor_height"):
+                    d["floor_height"] = v["floor_height"]
+                if v.get("drive_type"):
+                    d["drive_type"] = v["drive_type"]
+                if v.get("length"):
+                    d["vehicle_length"] = v["length"]
 
     # Enrich with GPS positions if positions_url is configured
     await _enrich_with_gps_positions(coord, session, city_cfg, departures)
@@ -618,6 +733,7 @@ def _parse_gtfs_zip(data: bytes) -> dict:
         # calendar.txt — active services
         active_services = set()
         has_calendar = False
+        any_weekday_match = False
         header, rows = _read_csv(zf, "calendar.txt")
         if header:
             has_calendar = True
@@ -630,6 +746,8 @@ def _parse_gtfs_zip(data: bytes) -> dict:
                     continue
                 svc = parts[sid_idx]
                 active = day_idx >= 0 and len(parts) > day_idx and parts[day_idx] == "1"
+                if active:
+                    any_weekday_match = True
                 if active and start_idx >= 0 and end_idx >= 0 and len(parts) > max(start_idx, end_idx):
                     if parts[start_idx] > today_str or parts[end_idx] < today_str:
                         active = False
@@ -685,7 +803,7 @@ def _parse_gtfs_zip(data: bytes) -> dict:
             svc_idx = header.index("service_id") if "service_id" in header else -1
             wc_idx = header.index("wheelchair_accessible") if "wheelchair_accessible" in header else -1
             bike_idx = header.index("bikes_allowed") if "bikes_allowed" in header else -1
-            filter_by_service = has_calendar
+            filter_by_service = has_calendar and any_weekday_match
             for parts in rows:
                 if len(parts) > max(tid_idx, rid_idx):
                     tid = parts[tid_idx]
@@ -909,8 +1027,8 @@ async def _get_vehicle_dict(coord, session, city_cfg) -> dict:
                                     "air_conditioner": ac in (1, 2),
                                     "vehicle_model": vtype.get("type", ""),
                                 }
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _LOGGER.debug("Failed to load tram vehicles: %s", exc)
             cache[cache_key] = {"data": result, "_ts": dt_util.now().timestamp()}
             return result
 
@@ -938,7 +1056,7 @@ async def _get_vehicle_dict(coord, session, city_cfg) -> dict:
 async def _enrich_with_gps_positions(coord, session, city_cfg, departures):
     """Fetch vehicle GPS positions and enrich departures with vehicle_lat/lng."""
     url = city_cfg.get("positions_url")
-    if not url or not any(d.get("vehicle_code") for d in departures):
+    if not url or not departures:
         return
 
     cache = coord.hass.data[DOMAIN].setdefault("_gtfsrt_positions", {})
@@ -965,8 +1083,16 @@ async def _enrich_with_gps_positions(coord, session, city_cfg, departures):
                     data = await resp.json()
                     for p in data.get("positions", []):
                         sn = p.get("side_number")
-                        if sn and "lat" in p and "lon" in p:
-                            positions[str(sn)] = {"lat": p["lat"], "lng": p["lon"], "bearing": p.get("bearing")}
+                        tid = p.get("trip_id")
+                        lat = p.get("lat")
+                        lon = p.get("lon")
+                        if not lat or not lon:
+                            continue
+                        entry = {"lat": lat, "lng": lon, "bearing": p.get("bearing")}
+                        if sn:
+                            positions[str(sn)] = entry
+                        if tid:
+                            positions[tid] = entry
         elif city_cfg.get("positions_format") == "gtfsrt_protobuf" or url.endswith(".pb"):
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=15), ssl=False) as resp:
                 if resp.status == 200:
@@ -992,27 +1118,55 @@ def _parse_gtfsrt_positions(raw):
         vehicle_id = vehicle_id.split("/")[-1] if "/" in vehicle_id else vehicle_id
         if not vehicle_id or not vehicle.HasField("position"):
             continue
-        positions[vehicle_id] = {
+        entry = {
             "lat": vehicle.position.latitude,
             "lng": vehicle.position.longitude,
-            "bearing": vehicle.position.bearing if vehicle.HasField("bearing") else None,
-            "speed": vehicle.position.speed if vehicle.HasField("speed") else None,
         }
+        try:
+            entry["bearing"] = vehicle.position.bearing if vehicle.position.HasField("bearing") else None
+        except (ValueError, AttributeError):
+            pass
+        try:
+            entry["speed"] = vehicle.position.speed if vehicle.position.HasField("speed") else None
+        except (ValueError, AttributeError):
+            pass
+        if vehicle.HasField("trip") and vehicle.trip.route_id:
+            entry["route_id"] = vehicle.trip.route_id
+        positions[vehicle_id] = entry
     return positions
 
 
 def _apply_positions(departures, positions):
-    """Add vehicle_lat/lng to departures matching positions by vehicle_code."""
+    """Add vehicle_lat/lng to departures matching positions by vehicle_code (or route_id fallback)."""
+    # Build route_id → best position map for cities without vehicle_code (e.g. Wrocław)
+    route_positions = {}
+    for vid, entry in positions.items():
+        rid = entry.get("route_id")
+        if rid:
+            route_positions.setdefault(rid, []).append(entry)
+
     for d in departures:
         vc = d.get("vehicle_code", "")
+        tid = d.get("trip_id", "")
+        p = None
         if vc and vc in positions:
             p = positions[vc]
-            d["vehicle_lat"] = p["lat"]
-            d["vehicle_lng"] = p["lng"]
-            if p.get("bearing") is not None:
-                d["vehicle_direction"] = p["bearing"]
-            if p.get("speed") is not None:
-                d["vehicle_speed"] = p["speed"]
+        elif tid and tid in positions:
+            p = positions[tid]
+        elif not vc:
+            rid = d.get("route", "")
+            candidates = route_positions.get(rid, [])
+            if candidates:
+                p = candidates[0]
+                candidates.append(candidates.pop(0))  # round-robin
+        if p is None:
+            continue
+        d["vehicle_lat"] = p["lat"]
+        d["vehicle_lng"] = p["lng"]
+        if p.get("bearing") is not None:
+            d["vehicle_direction"] = p["bearing"]
+        if p.get("speed") is not None:
+            d["vehicle_speed"] = round(p["speed"] * 3.6)
 
 
 async def _get_rt_delays(session, rt_url: str) -> dict:
@@ -1034,9 +1188,9 @@ async def _get_rt_delays(session, rt_url: str) -> dict:
             last_err = e
             if attempt < 2:
                 _LOGGER.debug("GTFS-RT attempt %d failed: %s, retrying...", attempt + 1, e)
-                await asyncio.sleep((1, 3)[attempt])
+                await asyncio.sleep([1, 3, 7][attempt])
         except Exception as e:
-            _LOGGER.debug("GTFS-RT: failed to fetch RT data from %s: %s", rt_url, e)
+            _LOGGER.warning("GTFS-RT: failed to fetch RT data from %s: %s", rt_url, e)
             return {}
     
     if last_err:
@@ -1045,24 +1199,27 @@ async def _get_rt_delays(session, rt_url: str) -> dict:
 
 
 def _parse_rt_feed(feed) -> dict:
-    """Parse a GTFS-RT FeedMessage into {trip_id_stop_id: (delay, vehicle_label)}."""
+    """Parse a GTFS-RT FeedMessage into {key: (delay, vehicle_label)} with route-level fallback."""
     delays = {}
     for entity in feed.entity:
         if not entity.HasField("trip_update"):
             continue
         trip_id = entity.trip_update.trip.trip_id
+        route_id = entity.trip_update.trip.route_id if entity.trip_update.trip.route_id else ""
         vehicle_label = ""
         if entity.trip_update.HasField("vehicle"):
             v = entity.trip_update.vehicle
             vid = v.id or v.label or ""
-            # Strip prefix like "3/" or "undefined/"
             vehicle_label = vid.split("/")[-1] if "/" in vid else vid
         for stu in entity.trip_update.stop_time_update:
             delay = stu.departure.delay if stu.HasField("departure") else (stu.arrival.delay if stu.HasField("arrival") else 0)
             if stu.stop_id:
                 delays[f"{trip_id}_{stu.stop_id}"] = (delay, vehicle_label)
+                if route_id:
+                    delays[f"route_{route_id}_{stu.stop_id}"] = (delay, vehicle_label)
             if stu.stop_sequence:
                 delays[f"{trip_id}_seq{stu.stop_sequence}"] = (delay, vehicle_label)
-            # Also store by trip_id only (best estimate for any stop on this trip)
             delays[trip_id] = (delay, vehicle_label)
+            if route_id:
+                delays[f"route_{route_id}"] = (delay, vehicle_label)
     return delays

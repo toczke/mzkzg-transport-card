@@ -3,6 +3,7 @@
 import asyncio
 from datetime import datetime, timedelta
 import logging
+import re
 
 import aiohttp
 
@@ -14,7 +15,7 @@ from .const import DOMAIN, PLK_API_BASE, PROVIDER_PLK
 _LOGGER = logging.getLogger(__name__)
 
 
-async def fetch(coord) -> dict:
+async def fetch(coord: "MzkzgTransportCoordinator") -> dict:
     """Fetch departures from PLK OpenData API (PR/SKM/IC)."""
     session = await coord._get_session()
     now = dt_util.now()
@@ -232,7 +233,6 @@ def _time_to_datetime(operating_date: str, time_str: str, day_offset: int = 0) -
     # Handle ISO 8601 duration format PT{hours}H{minutes}M{seconds}S
     if time_str.startswith("PT"):
         h, m, s = 0, 0, 0
-        import re
         match = re.match(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", time_str)
         if match:
             h = int(match.group(1) or 0)

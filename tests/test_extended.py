@@ -561,7 +561,7 @@ async def test_lodz_fetch_single_board(mock_hass):
               <Stop name="Brzezińska-Janosika" id="100" ds="32"/>
               <Day>
                 <R nr="53A" dir="NOWOSOLNA" vt="B">
-                  <S tm="12" th="10" veh="T" nb="1155"/>
+                  <S tm="12" th="23" veh="T" nb="1155"/>
                 </R>
               </Day>
             </Timetable>""",
@@ -636,7 +636,7 @@ async def test_lodz_fetch_enrich_with_delays(mock_hass):
                   <Stop name="Okólna-Secesyjna NŻ" id="205" ds="32"/>
                   <Day>
                     <R nr="61" dir="DW. ŁÓDŹ WIDZEW" vt="B">
-                      <S tm="15" th="10" veh="N"/>
+                      <S tm="15" th="23" veh="N"/>
                     </R>
                   </Day>
                 </Timetable>""",

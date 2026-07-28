@@ -677,7 +677,7 @@ class MzkzgTransportCardEditor extends HTMLElement {
     const destFilter = val("destination_filter").split(",").map(s => s.trim()).filter(Boolean);
 
     // Only include fields that differ from card defaults — keeps YAML minimal
-    const DEFAULTS = { max_departures:10, display_preset:"standard", view_mode:"mixed", highlight_mode:false, show_delays:true, hide_terminus:true, realtime_only:false, show_footer:true, show_bike:true, show_wheelchair:true, show_ac:true, show_ticket_machine:true, refresh_interval:60 };
+    const DEFAULTS = { max_departures:10, display_preset:"standard", view_mode:"mixed", highlight_mode:false, show_delays:true, hide_terminus:true, realtime_only:false, show_footer:true, show_bike:true, show_wheelchair:true, show_ac:true, show_ticket_machine:true, refresh_interval:60};
     const omit = (k, v) => v === DEFAULTS[k] ? undefined : v;
 
     const maxDep = parseInt(val("max_departures")) || 10;
@@ -978,6 +978,11 @@ class MzkzgTransportCardEditor extends HTMLElement {
             <label for="refresh_interval">Odświeżanie (s)</label>
             <input id="refresh_interval" type="text" inputmode="numeric" value="${escapeHtml(c.refresh_interval ?? 60)}" />
           </div>
+          <div class="field" style="margin-top:8px">
+            <div class="muted">Półprzezroczysta warstwa na mapie pojazdu. Wymaga klucza API (Mapbox, TomTom, HERE).</div>
+          </div>
+          <div class="field" style="margin-top:8px">
+          </div>
         </div>` : ""}
       </div>`;
 
@@ -1262,9 +1267,30 @@ class MzkzgTransportCard extends HTMLElement {
     return this._leafletLoading;
   }
 
+  _buildVehicleMarker(bearing, color, route, vehicleType, info, isMobile) {
+    const size = isMobile ? 32 : 40;
+    const fontSize = isMobile ? 11 : 13;
+    const half = size / 2;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size + 6}" viewBox="0 0 ${size} ${size + 6}">
+      <circle cx="${half}" cy="${half}" r="${half - 3}" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+      <text x="${half}" y="${half}" text-anchor="middle" dominant-baseline="central" font-weight="700" font-size="${fontSize}" fill="#fff" font-family="system-ui,sans-serif">${escapeHtml(route)}</text>
+      <path d="M${half},${size - 3} Q${half - 14},${size + 1} ${half - 7},${size - 1} L${half},${size + 6} L${half + 7},${size - 1} Q${half + 14},${size + 1} ${half},${size - 3} Z" fill="${color}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>`;
+
+    return { svg, size, arrowH: size + 7 };
+  }
+
+  _buildPopupContent(d) {
+    const delay = Math.round((d.delay_seconds || 0) / 60);
+    const delayTag = delay > 0 ? `+${delay} min` : delay < 0 ? `${delay} min` : "o czasie";
+    const delayClass = delay > 0 ? "zm-popup-delay" : delay < 0 ? "zm-popup-delay early" : "zm-popup-delay ontime";
+    return `<div class="zm-popup"><div class="zm-popup-route">${escapeHtml(d.route)}</div>${d.headsign ? `<div class="zm-popup-headsign">→ ${escapeHtml(d.headsign)}</div>` : ""}${d.vehicle_code ? `<div class="zm-popup-meta">🚍 ${escapeHtml(d.vehicle_code)}</div>` : ""}<div class="zm-popup-delay-row"><span class="${delayClass}">${escapeHtml(delayTag)}</span></div></div>`;
+  }
+
   _showVehicleMap(lat, lng, info) {
     if (this._mapCtx) { this._mapCtx.destroy(); }
 
+    const isMobile = window.innerWidth < 480;
     const w = Math.min(window.innerWidth * 0.92, 520);
     const h = Math.min(window.innerHeight * 0.65, 420);
 
@@ -1281,22 +1307,23 @@ class MzkzgTransportCard extends HTMLElement {
     if (!document.getElementById("ztm-map-style")) {
       const s = document.createElement("style");
       s.id = "ztm-map-style";
-      s.textContent = `.zm-d{box-sizing:border-box;width:48px;height:48px;background:#DA2128;border:3px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;text-shadow:0 1px 3px rgba(0,0,0,0.4);line-height:1;animation:zm-p 2s ease-out infinite}@keyframes zm-p{0%{box-shadow:0 0 0 0 rgba(218,33,40,0.5)}70%{box-shadow:0 0 0 22px rgba(218,33,40,0)}100%{box-shadow:0 0 0 0 rgba(218,33,40,0)}}`;
+      s.textContent = `.zm-arrow{position:relative;display:inline-block;transition:transform 0.8s ease}.zm-arrow svg{display:block}.zm-popup{font-family:system-ui,sans-serif;font-size:12px;line-height:1.3;min-width:120px}.zm-popup-route{font-size:22px;font-weight:800;line-height:1}.zm-popup-headsign{font-size:13px;color:#555}.zm-popup-meta{font-size:10px;color:#999;margin-top:2px}.zm-popup-delay-row{margin-top:4px;font-size:13px;font-weight:600}.zm-popup-delay{color:#e53935}.zm-popup-delay.ontime{color:#43a047}.zm-popup-delay.early{color:#1e88e5}}`;
       document.head.appendChild(s);
     }
 
-    const ctx = { overlay, container, vehicleCode: info.code, entityId: info.entityId, map: null, marker: null, glow: null, popup: null, interval: null, ro: null, destroyed: false };
+    const ctx = { overlay, container, vehicleCode: info.code, entityId: info.entityId, map: null, marker: null, interval: null, ro: null, destroyed: false };
     ctx.destroy = () => {
       if (ctx.destroyed) return;
       ctx.destroyed = true;
       if (ctx.interval) clearInterval(ctx.interval);
+      if (ctx.animFrame) cancelAnimationFrame(ctx.animFrame);
       if (ctx.ro) ctx.ro.disconnect();
       if (ctx.map) ctx.map.remove();
       if (ctx.overlay && ctx.overlay.parentNode) ctx.overlay.parentNode.removeChild(ctx.overlay);
     };
     this._mapCtx = ctx;
 
-    const getDelayText = (delay) => delay > 0 ? `opóźniony ${delay} min` : delay < 0 ? `przyspieszony ${Math.abs(delay)} min` : "o czasie";
+    const color = routeColor(info.route, info.provider || "");
 
     const createMap = () => {
       requestAnimationFrame(() => {
@@ -1307,21 +1334,22 @@ class MzkzgTransportCard extends HTMLElement {
         }).addTo(map);
         ctx.map = map;
 
+        const bearing = info.direction || 0;
+        const vt = info.vehicleType || "bus";
+        const mk = this._buildVehicleMarker(bearing, color, info.route, vt, info, isMobile);
+        const mkHtml = `<div class="zm-arrow" style="transform:rotate(${bearing}deg)">${mk.svg}</div>`;
+
         const icon = window.L.divIcon({
           className: "",
-          html: `<div class="zm-d"><span class="zm-l">${escapeHtml(info.route)}</span></div>`,
-          iconSize: [48, 48], iconAnchor: [24, 24],
+          html: mkHtml,
+          iconSize: [mk.size, mk.arrowH],
+          iconAnchor: [mk.size / 2, mk.arrowH],
         });
         ctx.marker = window.L.marker([lat, lng], { icon }).addTo(map);
-        ctx.popup = ctx.marker.bindPopup(`<b>${escapeHtml(info.route)}</b>${info.code ? ` &mdash; ${escapeHtml(info.code)}` : ""}<br>${getDelayText(info.delay)}`).openPopup();
-        ctx.glow = window.L.circleMarker([lat, lng], {
-          radius: 30, color: "#DA2128", opacity: 0.15, fillColor: "#DA2128", fillOpacity: 0.08, weight: 1,
-        }).addTo(map);
 
         ctx.ro = new window.ResizeObserver(() => { if (ctx.map) ctx.map.invalidateSize(); });
         ctx.ro.observe(container);
 
-        // Start live position polling
         ctx.interval = setInterval(() => this._updateVehiclePosition(ctx), 30000);
       });
     };
@@ -1340,11 +1368,23 @@ class MzkzgTransportCard extends HTMLElement {
         if (!position) continue;
         const [newLat, newLng] = position;
         const curPos = ctx.marker.getLatLng();
-        if (Math.abs(curPos.lat - newLat) < 0.00001 && Math.abs(curPos.lng - newLng) < 0.00001) return;
+        if (Math.abs(curPos.lat - newLat) < 0.00001 && Math.abs(curPos.lng - newLng) < 0.00001) {
+          return;
+        }
         ctx.marker.setLatLng([newLat, newLng]);
-        ctx.glow.setLatLng([newLat, newLng]);
         const delay = Math.round((d.delay_seconds || 0) / 60);
-        ctx.popup.setContent(`<b>${escapeHtml(d.route)}</b>${d.vehicle_code ? ` &mdash; ${escapeHtml(d.vehicle_code)}` : ""}<br>${delay > 0 ? `opóźniony ${delay} min` : delay < 0 ? `przyspieszony ${Math.abs(delay)} min` : "o czasie"}`);
+        const bearing = d.vehicle_direction || d.direction || 0;
+        const color = routeColor(d.route, d._provider || d.provider || "");
+        const vt = d.vehicle_type || "bus";
+        const isMobile = window.innerWidth < 480;
+        const mk = this._buildVehicleMarker(bearing, color, d.route, vt, d, isMobile);
+        const mkHtml = `<div class="zm-arrow" style="transform:rotate(${bearing}deg)">${mk.svg}</div>`;
+        ctx.marker.setIcon(window.L.divIcon({
+          className: "",
+          html: mkHtml,
+          iconSize: [mk.size, mk.arrowH],
+          iconAnchor: [mk.size / 2, mk.arrowH],
+        }));
         ctx.map.setView([newLat, newLng], ctx.map.getZoom(), { animate: true });
         break;
       }
@@ -1534,11 +1574,23 @@ class MzkzgTransportCard extends HTMLElement {
           row.getAttribute("data-vehicle-lng")
         );
         if (!position) return false;
+        const showEntityId = row.getAttribute("data-entity-id") || this._config.entities?.[0]?.entity || "";
+        const showState = this._hass?.states?.[showEntityId];
         this._showVehicleMap(position[0], position[1], {
           route: row.getAttribute("data-vehicle-route") || "",
           code: row.getAttribute("data-vehicle-code") || "",
+          headsign: row.getAttribute("data-vehicle-headsign") || "",
           delay: parseInt(row.getAttribute("data-vehicle-delay")) || 0,
-          entityId: row.getAttribute("data-entity-id") || this._config.entities?.[0]?.entity || "",
+          direction: parseFloat(row.getAttribute("data-vehicle-direction")) || null,
+          provider: showState?.attributes?.provider || "",
+          entityId: showEntityId,
+          vehicleType: row.getAttribute("data-vehicle-type") || "bus",
+          lowFloor: row.getAttribute("data-vehicle-lowfloor") === "1",
+          electric: row.getAttribute("data-vehicle-electric") === "1",
+          articulated: row.getAttribute("data-vehicle-articulated") === "1",
+          historic: row.getAttribute("data-vehicle-historic") === "1",
+          vehicle_model: row.getAttribute("data-vehicle-model") || "",
+          vehicle_speed: parseFloat(row.getAttribute("data-vehicle-speed")) || null,
         });
         return true;
       };
@@ -1725,8 +1777,11 @@ class MzkzgTransportCard extends HTMLElement {
       const rowLabel = `${d.route} → ${d.headsign}, ${formatTime(d.estimated_time || d.theoretical_time)}${mins !== null && mins >= 0 ? ` (${mins} ${t("min")})` : ""}`;
       const hasPos = parseVehiclePosition(d.vehicle_lat, d.vehicle_lng) !== null;
       const isInteractive = hasRowActions || hasPos;
+      const dir = d.vehicle_direction || d.direction || "";
+      const isLowFloor = d.floor_height && d.floor_height !== "Pojazd wysokopodłogowy";
+      const isElectric = d.drive_type === "elektryczny";
       const extras = hasPos
-        ? ` data-vehicle-lat="${escapeHtml(String(d.vehicle_lat))}" data-vehicle-lng="${escapeHtml(String(d.vehicle_lng))}" data-vehicle-code="${escapeHtml(d.vehicle_code || "")}" data-vehicle-route="${escapeHtml(d.route)}" data-vehicle-delay="${delayMin}"`
+        ? ` data-vehicle-lat="${escapeHtml(String(d.vehicle_lat))}" data-vehicle-lng="${escapeHtml(String(d.vehicle_lng))}" data-vehicle-code="${escapeHtml(d.vehicle_code || "")}" data-vehicle-route="${escapeHtml(d.route)}" data-vehicle-headsign="${escapeHtml(d.headsign)}" data-vehicle-delay="${delayMin}" data-vehicle-direction="${escapeHtml(String(dir))}" data-vehicle-type="${escapeHtml(d.vehicle_type || "bus")}" data-vehicle-lowfloor="${isLowFloor ? "1" : "0"}" data-vehicle-electric="${isElectric ? "1" : "0"}" data-vehicle-articulated="${d.articulated ? "1" : "0"}" data-vehicle-historic="${d.historic ? "1" : "0"}" data-vehicle-model="${escapeHtml(d.vehicle_model || "")}" data-vehicle-speed="${d.vehicle_speed != null ? escapeHtml(String(Math.round(d.vehicle_speed))) : "0"}"`
         : "";
       const rowAttrs = `data-entity-id="${escapeHtml(d._entityId || "")}"`;
       return `<div class="dep-row${isInteractive ? " interactive" : ""}${imminent ? " imminent" : ""}${d._dimmed ? " dimmed" : ""}${cancelled ? " cancelled" : ""}" ${isInteractive ? `tabindex="0" role="button" aria-label="${escapeHtml(rowLabel)}"` : ""}${rowAttrs}${extras}>

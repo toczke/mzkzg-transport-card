@@ -45,6 +45,7 @@ from .const import (
     CONF_SLEEP_END,
     CONF_SLEEP_START,
     CONF_STOP_ID,
+    CONF_STOPS,
     DEFAULT_FALLBACK_MIN,
     DEFAULT_SLEEP_END,
     DEFAULT_SLEEP_START,
@@ -132,6 +133,19 @@ from .const import (
     PROVIDER_OPOLE,
     PROVIDER_RZESZOW,
     PROVIDER_LESZNO,
+    PROVIDER_TORUN,
+    PROVIDER_WROCLAW,
+    PROVIDER_SWINOUJSCIE,
+    PROVIDER_WALBRZYCH,
+    PROVIDER_TARNOW,
+    PROVIDER_STARACHOWICE,
+    PROVIDER_SIEDLCE,
+    PROVIDER_PLOCK,
+    PROVIDER_PILA,
+    PROVIDER_KROSNO,
+    PROVIDER_KOSZALIN,
+    PROVIDER_KONIN,
+    PROVIDER_KALISZ,
 
     GTFSRT_PROVIDERS,
 
@@ -199,7 +213,20 @@ PROVIDER_OPTIONS = {
     PROVIDER_OLSZTYN: "ZDZiT Olsztyn",
     PROVIDER_OPOLE: "MZK Opole",
     PROVIDER_RZESZOW: "ZTM Rzeszów",
+    PROVIDER_TORUN: "MZK Toruń",
+    PROVIDER_WROCLAW: "MPK Wrocław",
     PROVIDER_LESZNO: "MZK Leszno",
+    PROVIDER_SWINOUJSCIE: "KA Świnoujście",
+    PROVIDER_WALBRZYCH: "ZKM Wałbrzych",
+    PROVIDER_TARNOW: "MPK Tarnów",
+    PROVIDER_STARACHOWICE: "MZK Starachowice",
+    PROVIDER_SIEDLCE: "MPK Siedlce",
+    PROVIDER_PLOCK: "KM Płock",
+    PROVIDER_PILA: "MZK Piła",
+    PROVIDER_KROSNO: "MKS Krosno",
+    PROVIDER_KOSZALIN: "MZK Koszalin",
+    PROVIDER_KONIN: "MZK Konin",
+    PROVIDER_KALISZ: "MZK Kalisz",
 }
 
 PROVIDER_OPTIONS_SORTED = dict(
@@ -244,6 +271,10 @@ class MzkzgTransportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
             self._provider = user_input[CONF_PROVIDER]
+
+
+            if self._provider == PROVIDER_LODZ:
+                return await self.async_step_lodz_mode()
 
 
             if self._provider == PROVIDER_PLK:
@@ -387,6 +418,120 @@ class MzkzgTransportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
 
 
+        )
+
+
+    async def async_step_lodz_mode(self, user_input=None):
+        """Łódź: choose single stop or bus stop group (węzeł przesiadkowy)."""
+        if user_input is not None:
+            if user_input.get("mode") == "group":
+                self._lodz_stops = await self._load_lodz_groups()
+                return await self.async_step_lodz_group()
+            # Single stop
+            self._stops = await self._load_stops(self._provider)
+            return await self.async_step_stop()
+
+        return self.async_show_form(
+            step_id="lodz_mode",
+            data_schema=vol.Schema({
+                vol.Required("mode", default="single"): vol.In({
+                    "single": "Pojedynczy przystanek",
+                    "group": "Węzeł przesiadkowy (grupa przystanków)",
+                })
+            }),
+        )
+
+    async def _load_lodz_groups(self) -> list:
+        """Fetch bus stop groups from rozklady.lodz.pl API."""
+        import aiohttp
+        try:
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "http://rozklady.lodz.pl/Home/GetMapBusStopGroupList",
+                    timeout=timeout,
+                ) as resp:
+                    if resp.status != 200:
+                        _LOGGER.warning("Łódź groups API HTTP %s", resp.status)
+                        return []
+                    text = await resp.text()
+                    import json
+                    data = json.loads(text)
+        except Exception as exc:
+            _LOGGER.warning("Failed to load Łódź bus stop groups: %s", exc)
+            return []
+
+        groups = []
+        for item in data:
+            if not isinstance(item, list) or len(item) < 5:
+                continue
+            gid = item[0]
+            gname = item[1]
+            stops = item[4]  # list of [stop_id, stop_name]
+            expanded = [
+                {"id": str(s[0]), "name": s[1]}
+                for s in stops if isinstance(s, list) and len(s) >= 2
+            ]
+            if expanded:
+                groups.append({
+                    "id": str(gid),
+                    "name": gname,
+                    "stops": expanded,
+                })
+        groups.sort(key=lambda g: g["name"].casefold())
+        return groups
+
+    async def async_step_lodz_group(self, user_input=None):
+        """Łódź: select a bus stop group."""
+        errors = {}
+        if user_input is not None:
+            group_id = str(user_input["group_id"])
+            selected = None
+            for g in self._lodz_stops:
+                if g["id"] == group_id:
+                    selected = g
+                    break
+            if not selected:
+                errors["group_id"] = "invalid_group"
+            else:
+                stops_data = [{"stop_id": s["id"], "name": s["name"]} for s in selected["stops"]]
+                await self.async_set_unique_id(f"mpk_lodz_group_{group_id}")
+                self._abort_if_unique_id_configured()
+                data = {
+                    CONF_STOPS: stops_data,
+                    CONF_PROVIDER: self._provider,
+                    CONF_NAME: selected["name"],
+                }
+                return self.async_create_entry(
+                    title=f"Łódź: {selected['name']} ({len(stops_data)} przyst.)",
+                    data=data,
+                )
+
+        if not self._lodz_stops:
+            _LOGGER.warning("No Łódź bus stop groups loaded")
+            return self.async_abort(reason="lodz_groups_failed")
+
+        options = [
+            {"value": g["id"], "label": f"{g['name']} ({len(g['stops'])} przyst.)"}
+            for g in self._lodz_stops
+        ]
+        from homeassistant.helpers.selector import (
+            SelectOptionDict, SelectSelector, SelectSelectorConfig, SelectSelectorMode,
+        )
+        select_options = [SelectOptionDict(**o) for o in options]
+
+        return self.async_show_form(
+            step_id="lodz_group",
+            data_schema=vol.Schema({
+                vol.Required("group_id"): SelectSelector(
+                    SelectSelectorConfig(
+                        options=select_options,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        sort=False,
+                    )
+                ),
+            }),
+            errors=errors,
         )
 
 

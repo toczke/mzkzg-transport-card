@@ -21,7 +21,7 @@ ZTM_GDANSK_GTFS_URL = (
 )
 
 
-async def fetch(coord) -> dict:
+async def fetch(coord: "MzkzgTransportCoordinator") -> dict:
     """Fetch departures from ZTM Gdańsk TRISTAR API with GTFS fallback."""
     session = await coord._get_session()
     url = f"{ZTM_GDANSK_DEPARTURES_URL}?stopId={coord.stop_id}"
@@ -125,6 +125,7 @@ def _parse_api_departures(data: dict, fleet: dict, now) -> list:
         status = d.get("status", "SCHEDULED")
         vcode = str(d.get("vehicleCode") or "")
         vinfo = fleet.get(vcode, {})
+        characteristics = str(vinfo.get("vehicleCharacteristics", "")).lower()
         departures.append({
             "route": str(d.get("routeShortName") or d.get("routeId") or "?"),
             "headsign": d.get("headsign") or d.get("tripHeadsign") or "—",
@@ -139,6 +140,20 @@ def _parse_api_departures(data: dict, fleet: dict, now) -> list:
             "usb": vinfo.get("usb", False),
             "ticket_machine": vinfo.get("ticketMachine", False),
             "vehicle_code": vcode,
+            "vehicle_model": vinfo.get("model", ""),
+            "vehicle_brand": vinfo.get("brand", ""),
+            "vehicle_year": vinfo.get("productionYear"),
+            "vehicle_length": vinfo.get("length"),
+            "floor_height": vinfo.get("floorHeight", ""),
+            "drive_type": vinfo.get("driveType", ""),
+            "historic": vinfo.get("historicVehicle", False),
+            "articulated": characteristics == "przegubowy",
+            "bike_holders": vinfo.get("bikeHolders", 0),
+            "seats": vinfo.get("seats"),
+            "standing": vinfo.get("standingPlaces"),
+            "monitoring": vinfo.get("monitoring", False),
+            "voice_announcements": vinfo.get("voiceAnnouncements", False),
+            "aed": vinfo.get("aed", False),
             "provider": PROVIDER_ZTM,
         })
     return departures
@@ -155,7 +170,6 @@ def _deduplicate(departures: list) -> list:
     """
     seen: dict[tuple, dict] = {}
     seen_rt: dict[tuple, dict] = {}
-    seen_rt_order: list[tuple] = []
     for d in departures:
         t = (d.get("theoretical_time") or d.get("estimated_time") or "")[:16]
         h = (d.get("headsign") or "").strip()
@@ -177,7 +191,6 @@ def _deduplicate(departures: list) -> list:
 
         seen[key] = d
         seen_rt[key_rt] = d
-        seen_rt_order.append(key)
 
     return list(seen.values())
 

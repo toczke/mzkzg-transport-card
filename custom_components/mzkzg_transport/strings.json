@@ -22,6 +22,20 @@
           "stop_id": "Stop",
           "name": "Custom name (optional)"
         }
+      },
+      "lodz_mode": {
+        "title": "MPK Łódź — typ przystanku",
+        "description": "Wybierz pojedynczy przystanek lub węzeł przesiadkowy (grupę przystanków).",
+        "data": {
+          "mode": "Tryb"
+        }
+      },
+      "lodz_group": {
+        "title": "Łódź — węzeł przesiadkowy",
+        "description": "Wybierz grupę przystanków. Odjazdy będą pobierane ze wszystkich przystanków w grupie.",
+        "data": {
+          "group_id": "Węzeł"
+        }
       }
     },
     "error": {
@@ -29,14 +43,20 @@
       "api_key_required": "PLK API key is required"
     },
     "abort": {
-      "already_configured": "This stop is already configured"
+      "already_configured": "This stop is already configured",
+      "lodz_groups_failed": "Failed to load bus stop groups — check network connection"
     }
   },
   "options": {
     "step": {
       "init": {
+        "title": "Settings",
+        "description": "Configure sleep mode to pause API polling during night hours.",
         "data": {
-          "name": "Stop name"
+          "sleep_enabled": "Enable sleep mode",
+          "sleep_start": "Sleep start (HH:MM)",
+          "sleep_end": "Sleep end (HH:MM)",
+          "fallback_min": "Minimum scheduled departures for Łódź fallback"
         }
       }
     }

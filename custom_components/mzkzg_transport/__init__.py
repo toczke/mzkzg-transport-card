@@ -1,6 +1,7 @@
 """MZKZG Transport integration for Home Assistant."""
 
 import json
+import logging
 from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry
@@ -8,6 +9,8 @@ from homeassistant.core import HomeAssistant
 
 from .const import CONF_API_KEY, CONF_NAME, CONF_PLK_TIER, CONF_PROVIDER, CONF_STOP_ID, CONF_STOPS, DOMAIN
 from .coordinator import MzkzgTransportCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor", "binary_sensor"]
 _MANIFEST = json.loads((Path(__file__).parent / "manifest.json").read_text())
@@ -47,7 +50,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry.data.get(CONF_PLK_TIER, "basic"),
         )
         coordinator._options = dict(entry.options)
-        await coordinator.async_config_entry_first_refresh()
+        try:
+            await coordinator.async_config_entry_first_refresh()
+        except Exception:
+            _LOGGER.warning("First refresh failed for %s/%s", provider, stop_id, exc_info=True)
         coordinators.append(coordinator)
 
     domain_data["_coordinators"][entry.entry_id] = coordinators
@@ -124,5 +130,5 @@ async def _register_card(hass: HomeAssistant) -> None:
                     await resources.async_delete_item(r["id"])
                 # Add current version
                 await resources.async_create_item({"res_type": "module", "url": CARD_URL})
-    except (ImportError, AttributeError, TypeError, KeyError):
-        pass
+    except (ImportError, AttributeError, TypeError, KeyError) as err:
+        _LOGGER.warning("Failed to register Lovelace card resource: %s", err)

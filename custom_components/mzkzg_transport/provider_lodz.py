@@ -29,7 +29,7 @@ def _fallback_min(coord) -> int:
     return coord._options.get(CONF_FALLBACK_MIN, DEFAULT_FALLBACK_MIN) if hasattr(coord, "_options") else DEFAULT_FALLBACK_MIN
 
 
-async def fetch(coord) -> dict:
+async def fetch(coord: "MzkzgTransportCoordinator") -> dict:
     """Fetch realtime departures from MPK Łódź.
 
     stop_id formats:
@@ -305,35 +305,52 @@ async def _get_gtfs_zip(coord, session=None) -> bytes | None:
 
     config_dir = coord.hass.config.path()
     cache_dir = os.path.join(config_dir, DOMAIN)
-    os.makedirs(cache_dir, exist_ok=True)
+    loop = coord.hass.loop
+
+    def _ensure_dir():
+        os.makedirs(cache_dir, exist_ok=True)
+    await loop.run_in_executor(None, _ensure_dir)
+    
     zip_path = os.path.join(cache_dir, "lodz_gtfs.zip")
     meta_path = os.path.join(cache_dir, "lodz_gtfs_meta.txt")
 
     # Check if disk cache is fresh (skip download if same-day HEAD already passed)
     today = dt_util.now().strftime("%Y%m%d")
     disk_date = ""
-    if os.path.exists(meta_path):
+
+    def _read_meta():
         try:
-            disk_date = open(meta_path).read().strip()
+            return open(meta_path).read().strip()
         except (OSError, IOError):
-            pass
+            return ""
+    
+    def _meta_exists():
+        return os.path.exists(meta_path)
+    
+    if await loop.run_in_executor(None, _meta_exists):
+        disk_date = await loop.run_in_executor(None, _read_meta)
 
     http_session = session or async_get_clientsession(coord.hass)
 
-    if disk_date == today and os.path.exists(zip_path):
-        # Same day, disk cache is assumed fresh
+    def _zip_exists():
+        return os.path.exists(zip_path)
+
+    def _read_zip():
         try:
             with open(zip_path, "rb") as f:
-                data = f.read()
-            if data:
-                _LOGGER.debug("Łódź GTFS loaded from disk cache (%d bytes)", len(data))
-                return data
+                return f.read()
         except (OSError, IOError):
-            pass
+            return None
 
-    # Check freshness with HEAD request (only on first load of the day)
+    if disk_date == today and await loop.run_in_executor(None, _zip_exists):
+        data = await loop.run_in_executor(None, _read_zip)
+        if data:
+            _LOGGER.debug("Łódź GTFS loaded from disk cache (%d bytes)", len(data))
+            return data
+
+    # Check freshness with HEAD request
     need_download = True
-    if os.path.exists(zip_path):
+    if await loop.run_in_executor(None, _zip_exists):
         try:
             async with http_session.head(
                 LODZ_GTFS_URL, timeout=aiohttp.ClientTimeout(total=15), ssl=False
@@ -342,12 +359,20 @@ async def _get_gtfs_zip(coord, session=None) -> bytes | None:
                     remote_etag = resp.headers.get("ETag", "")
                     remote_last_modified = resp.headers.get("Last-Modified", "")
                     local_meta = ""
-                    if os.path.exists(meta_path):
+
+                    def _read_meta_val():
                         try:
-                            local_meta = open(meta_path).read().strip().split("|")[-1] if "|" in open(meta_path).read() else ""
-                        except (OSError, IOError):
-                            pass
-                    if (remote_etag and local_meta == remote_etag) or (not remote_etag and remote_last_modified and local_meta == remote_last_modified):
+                            with open(meta_path) as f:
+                                content = f.read().strip()
+                                return content.split("|")[-1] if "|" in content else ""
+                        except Exception:
+                            return ""
+                    
+                    if await loop.run_in_executor(None, _meta_exists):
+                        local_meta = await loop.run_in_executor(None, _read_meta_val)
+                    
+                    if (remote_etag and local_meta == remote_etag) or \
+                       (not remote_etag and remote_last_modified and local_meta == remote_last_modified):
                         need_download = False
         except Exception:
             pass
@@ -365,29 +390,38 @@ async def _get_gtfs_zip(coord, session=None) -> bytes | None:
             _LOGGER.debug("Łódź GTFS download error: %s", exc)
             return None
 
-        # Save to disk cache
-        try:
-            with open(zip_path, "wb") as f:
-                f.write(data)
-            remote_etag = resp.headers.get("ETag", "")
-            remote_last_modified = resp.headers.get("Last-Modified", "")
-            meta_value = f"{today}|{remote_etag or remote_last_modified}"
-            with open(meta_path, "w") as f:
-                f.write(meta_value)
-        except (OSError, IOError) as exc:
-            _LOGGER.debug("Łódź GTFS disk cache write failed: %s", exc)
+        def _write_cache():
+            try:
+                with open(zip_path, "wb") as f:
+                    f.write(data)
+                return True
+            except Exception:
+                return False
+
+        await loop.run_in_executor(None, _write_cache)
+        
+        remote_etag = resp.headers.get("ETag", "")
+        remote_last_modified = resp.headers.get("Last-Modified", "")
+        meta_value = f"{today}|{remote_etag or remote_last_modified}"
+        
+        def _write_meta():
+            try:
+                with open(meta_path, "w") as f:
+                    f.write(meta_value)
+            except Exception:
+                pass
+        
+        await loop.run_in_executor(None, _write_meta)
 
         _LOGGER.debug("Łódź GTFS downloaded: %d bytes", len(data))
         return data
 
     # Disk cache is fresh enough
-    try:
-        with open(zip_path, "rb") as f:
-            data = f.read()
+    data = await loop.run_in_executor(None, _read_zip)
+    if data:
         _LOGGER.debug("Łódź GTFS loaded from disk cache (fresh, %d bytes)", len(data))
         return data
-    except (OSError, IOError):
-        return None
+    return None
 
 
 def _get_gtfs_stop_departures(gtfs: dict, gtfs_stop_id: str, now, coord) -> list:
@@ -422,7 +456,7 @@ def _get_gtfs_stop_departures(gtfs: dict, gtfs_stop_id: str, now, coord) -> list
             "theoretical_time": dep_dt.isoformat(),
             "delay_seconds": 0,
             "realtime": False,
-            "vehicle_type": "tram" if st.get("route_type") == "tram" or (route_id.isdigit() and int(route_id) < 20) else "bus",
+            "vehicle_type": gtfs.get("routes", {}).get(route_id, {}).get("type", "bus"),
             "provider": coord.provider,
         })
 
@@ -489,9 +523,15 @@ async def _enrich_lodz_vehicle_positions(session, departures: list) -> None:
             positions[vid] = {
                 "lat": v.position.latitude,
                 "lng": v.position.longitude,
-                "bearing": v.position.bearing if v.HasField("bearing") else None,
-                "speed": v.position.speed if v.HasField("speed") else None,
             }
+            try:
+                positions[vid]["bearing"] = v.position.bearing if v.position.HasField("bearing") else None
+            except (ValueError, AttributeError):
+                pass
+            try:
+                positions[vid]["speed"] = v.position.speed if v.position.HasField("speed") else None
+            except (ValueError, AttributeError):
+                pass
 
         for d in departures:
             vc = d.get("vehicle_code", "")
@@ -502,68 +542,9 @@ async def _enrich_lodz_vehicle_positions(session, departures: list) -> None:
                 if p.get("bearing") is not None:
                     d["vehicle_direction"] = p["bearing"]
                 if p.get("speed") is not None:
-                    d["vehicle_speed"] = p["speed"]
+                    d["vehicle_speed"] = round(p["speed"] * 3.6)
     except Exception as e:
         _LOGGER.debug("Łódź vehicle positions failed: %s", e)
-
-
-def _enrich_with_delays(departures: list, delays: dict, stop_mapping: dict, stop_id: str) -> None:
-    """Apply GTFS-RT delay data by matching (route_id, GTFS_stop_id)."""
-    gtfs_stop_ids = stop_mapping.get(stop_id, [])
-    if not gtfs_stop_ids:
-        return
-
-    for d in departures:
-        route = d.get("route", "")
-        for gtfs_sid in gtfs_stop_ids:
-            delay = delays.get((route, gtfs_sid))
-            if delay is not None:
-                d["delay_seconds"] = delay
-                d["realtime"] = True
-                if delay and d.get("theoretical_time"):
-                    try:
-                        theo = datetime.fromisoformat(
-                            d["theoretical_time"].replace("Z", "+00:00")
-                        )
-                        d["estimated_time"] = (
-                            theo + timedelta(seconds=delay)
-                        ).isoformat()
-                    except (ValueError, AttributeError):
-                        pass
-                break
-
-
-async def _fetch_delays(session) -> dict:
-    """Fetch GTFS-RT trip updates and return {(route_id, gtfs_stop_id): delay_seconds}."""
-    try:
-        from google.transit import gtfs_realtime_pb2
-
-        async with session.get(
-            LODZ_TRIP_UPDATES, timeout=10, ssl=False
-        ) as resp:
-            if resp.status != 200:
-                return {}
-            data = await resp.read()
-
-        feed = gtfs_realtime_pb2.FeedMessage()
-        feed.ParseFromString(data)
-
-        delays = {}
-        for entity in feed.entity:
-            if not entity.HasField("trip_update"):
-                continue
-            tu = entity.trip_update
-            route_id = tu.trip.route_id
-            for stu in tu.stop_time_update:
-                delay = (
-                    stu.departure.delay if stu.HasField("departure") else
-                    stu.arrival.delay if stu.HasField("arrival") else 0
-                )
-                key = (route_id, stu.stop_id)
-                delays[key] = delay
-        return delays
-    except Exception:
-        return {}
 
 
 def _enrich_with_delays(departures: list, delays: dict, stop_mapping: dict, stop_id: str) -> None:

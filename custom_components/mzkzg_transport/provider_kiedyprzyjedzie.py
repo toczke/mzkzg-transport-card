@@ -9,7 +9,7 @@ from .const import KIEDYPRZYJEDZIE_BASE_URLS
 from .http_utils import fetch_with_retry
 
 
-async def fetch(coord) -> dict:
+async def fetch(coord: "MzkzgTransportCoordinator") -> dict:
     """Fetch departures from kiedyPrzyjedzie carriers."""
     session = await coord._get_session()
     base_url = KIEDYPRZYJEDZIE_BASE_URLS[coord.provider]
