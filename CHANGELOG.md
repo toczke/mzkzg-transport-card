@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.6.0] — unreleased
+
+### New Providers (+8)
+- **MKS Mielec** — GTFS-RT + GPS (19 TU, 19 VP) (`api.zbiorkom.live api6-open`)
+- **MZK Oświęcim** — GTFS-RT + GPS (59 TU, 10 VP) (`api.zbiorkom.live api6-open`)
+- **MPK Radomsko** — GTFS-RT + GPS (1 TU, 1 VP) (`api.zbiorkom.live api6-open`)
+- **ZDMiKP Bydgoszcz** — static GTFS, 1194 stops (`mkuran.pl`)
+- **MKS Dębica** — static GTFS (`api.zbiorkom.live api6-open`)
+- **KM Kołobrzeg** — static GTFS (`api.zbiorkom.live api6-open`)
+- **SPGK Sanok** — static GTFS (`api.zbiorkom.live api6-open`)
+- **MZK Ostrołęka** — static GTFS (`api.zbiorkom.live api6-open`)
+
+### Card UX Improvements
+- **Per-entity `max_departures`** — override global cap per sensor in the card editor
+- **Platform/peron display** — compact chip showing platform/stand number when available
+- **Multi-vehicle live map** — all GPS-tracked vehicles from a stop shown simultaneously; clicked vehicle highlighted
+- **Stop location marker** — colored circle marking the stop position on the live map
+- **Editor live preview** — real-time mini card preview in the Lovelace editor
+- **Map refresh indicator** — subtle "🔄 co 30s" status showing map auto-update interval
+
+### Security
+- **SSL enabled by default** — `ssl=False` removed from all GTFSRT provider requests and config_flow; only Wrocław (`mapadlugoleka.klosok.eu`) requires opt-out
+
+### Internationalization (i18n)
+- Full English + Polish translations for all 5 config flow steps (`user`, `stop`, `api_key`, `lodz_mode`, `lodz_group`)
+- Error and abort messages translated in both languages
+
+### Maintenance
+- Removed `from __future__ import annotations` from 4 files (Python 3.12+ no-op)
+- Updated `hacs.json` minimum Home Assistant version to 2025.1.0
+
+---
+
 ## [1.5.0] — 2026-07-28
 
 ### New Providers (+11)

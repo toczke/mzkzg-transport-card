@@ -657,3 +657,91 @@ async def test_lodz_fetch_enrich_with_delays(mock_hass):
     assert result["departures"][0]["route"] == "61"
     assert result["departures"][0]["realtime"] is True
     assert result["departures"][0]["delay_seconds"] == 90
+
+
+@pytest.mark.gtfsrt
+class TestGpsMatchingFallbacks:
+    """Tests for multi-strategy GPS position matching."""
+
+    def test_vehicle_code_match_priority(self):
+        """vehicle_code match takes priority over route_id."""
+        from mzkzg_transport.provider_gtfsrt import _apply_positions
+        positions = {
+            "v1": {"lat": 50.1, "lng": 19.0},
+            "v2": {"lat": 50.2, "lng": 19.1, "route_id": "42"},
+        }
+        deps = [{"vehicle_code": "v1", "route": "42"}]
+        _apply_positions(deps, positions)
+        assert deps[0]["vehicle_lat"] == pytest.approx(50.1)
+
+    def test_trip_id_match(self):
+        """trip_id keyed positions match departures with trip_id."""
+        from mzkzg_transport.provider_gtfsrt import _apply_positions
+        positions = {"T123": {"lat": 50.1, "lng": 19.0}}
+        deps = [{"trip_id": "T123", "route": "42", "vehicle_code": None}]
+        _apply_positions(deps, positions)
+        assert deps[0]["vehicle_lat"] == pytest.approx(50.1)
+
+    def test_no_match_leaves_departure_unchanged(self):
+        """Departure without any matching position key is unchanged."""
+        from mzkzg_transport.provider_gtfsrt import _apply_positions
+        positions = {"v1": {"lat": 50.1, "lng": 19.0}}
+        deps = [{"vehicle_code": "v2", "route": "42", "trip_id": "T99"}]
+        _apply_positions(deps, positions)
+        assert "vehicle_lat" not in deps[0]
+
+@pytest.mark.gtfsrt
+class TestCalendarFallback:
+    """Tests for any_weekday_match calendar resilience."""
+
+    def test_no_weekday_match_includes_all_trips(self):
+        """When no service matches today's weekday, all trips are included."""
+        from mzkzg_transport.provider_gtfsrt import _parse_gtfs_zip
+        import io, zipfile
+        from datetime import date
+
+        # Calendar with services only on Monday (today is not Monday)
+        day_name = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][date.today().weekday()]
+        if day_name == "monday":
+            import pytest
+            pytest.skip("Test only valid when today is not Monday")
+
+        calendar = "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\nSVC1,1,0,0,0,0,0,0,20200101,20301231\n"
+        trips = "trip_id,route_id,service_id,trip_headsign\nT1,R1,SVC1,Dest\n"
+        routes = "route_id,route_short_name,route_type\nR1,10,3\n"
+        stops = "stop_id,stop_name\nS1,Stop One\n"
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr("calendar.txt", calendar)
+            zf.writestr("trips.txt", trips)
+            zf.writestr("routes.txt", routes)
+            zf.writestr("stops.txt", stops)
+
+        result = _parse_gtfs_zip(buf.getvalue())
+        assert "T1" in result["trips"]  # Trip should be included despite Monday-only calendar
+
+    def test_weekday_match_filters_trips(self):
+        """When a service matches today's weekday but is outside date range, trips are filtered."""
+        from mzkzg_transport.provider_gtfsrt import _parse_gtfs_zip
+        import io, zipfile
+        from datetime import date
+
+        days = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
+        today = days[date.today().weekday()]
+        vals = ["1" if d == today else "0" for d in days]
+        
+        calendar = f"service_id,{','.join(days)},start_date,end_date\nSVC_OLD,{','.join(vals)},20200101,20200301\n"
+        trips = "trip_id,route_id,service_id,trip_headsign\nT1,R1,SVC_OLD,Dest\n"
+        routes = "route_id,route_short_name,route_type\nR1,5,3\n"
+        stops = "stop_id,stop_name\nS1,Stop\n"
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr("calendar.txt", calendar)
+            zf.writestr("trips.txt", trips)
+            zf.writestr("routes.txt", routes)
+            zf.writestr("stops.txt", stops)
+
+        result = _parse_gtfs_zip(buf.getvalue())
+        assert "T1" not in result["trips"]  # Expired, should be filtered

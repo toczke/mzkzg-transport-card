@@ -2,7 +2,7 @@
 
 ## P0 — Security
 
-- [ ] **Eliminate `ssl=False`** — 17 occurrences across all providers
+- [x] **Eliminate `ssl=False`** ✅ — 17 occurrences across all providers
   - Add per-provider SSL verification toggle (default: on)
   - Wrocław (`mapadlugoleka.klosok.eu`) — self-signed cert → document as opt-out
   - GZM (`gtfsrt.transportgzm.pl:5443`) — non-standard port + cert → document
@@ -21,7 +21,7 @@
 
 ## P2 — New Providers
 
-- [ ] **Bydgoszcz** — static GTFS available (`mkuran.pl/gtfs/bydgoszcz.zip`, 1194 stops) — no RT
+- [x] **Bydgoszcz** ✅ — static GTFS available (`mkuran.pl/gtfs/bydgoszcz.zip`, 1194 stops) — no RT
 - [ ] Research additional Polish cities with public GTFS/GTFS-RT feeds
   - Check `gtfs.kasznia.net`, `files.girlc.at/gtfs/`
   - Check additional `api.zbiorkom.live` cities (e.g., `api6-open/bielsko-biala`, `api6-open/gniezno`)
@@ -37,20 +37,20 @@
 
 ## P4 — Testing
 
-- [ ] **config_flow unit tests** — smoke tests for provider selection, stop loading, multi-stop
+- [x] **config_flow unit tests** ✅ — smoke tests for provider selection, stop loading, multi-stop
 - [ ] **provider_krakow tests** — bus/tram GPS enrichment, route_id matching
-- [ ] **GPS matching tests** — trip_id, route_id, vehicle_code fallbacks
-- [ ] **Speed normalization tests** — verify km/h across all providers
-- [ ] **Calendar resilience tests** — `any_weekday_match` edge cases
+- [x] **GPS matching tests** ✅ — trip_id, route_id, vehicle_code fallbacks
+- [x] **Speed normalization tests** ✅ — verify km/h across all providers
+- [x] **Calendar resilience tests** ✅ — `any_weekday_match` edge cases
 - [ ] **E2E Playwright tests** — fix CI pipeline, test card rendering with real HA
 
 ## P5 — Polish & Maintenance
 
-- [ ] **i18n** — full English + Polish translations for all config flow steps
-- [ ] **`strings.json` parity** — `lodz_mode`, `lodz_group` steps need English translations
+- [x] **i18n** ✅ + Polish translations for all config flow steps
+- [x] **`strings.json` parity** ✅ — `lodz_mode`, `lodz_group` steps need English translations
 - [ ] **`extra_state_attributes` migration** — deprecated in HA 2024.11, target for removal
 - [ ] **`hacs.json` min version** — already bumped to 2025.1.0, verify compatibility
-- [ ] **Code cleanup**
+- [x] **Code cleanup** ✅
   - Remove `from __future__ import annotations` (Python 3.12+ no-op)
   - Split `provider_gtfsrt.py` (~1225 LOC) into smaller modules
   - Audit `except Exception: pass` patterns (0 remaining, verified RC2)
