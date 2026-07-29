@@ -167,7 +167,7 @@ Restart Home Assistant.
 
 ## Setup
 
-1. **Settings → Devices & Services → Add Integration → MZKZG Transport**
+1. **Settings → Devices & Services → Add Integration → Polish Public Transport**
 2. Choose your provider from the dropdown
 3. Search or type a stop ID
 4. **Łódź only**: choose between "Single Stop" or "Bus Stop Group" (transfer hub) — the latter expands into one aggregated sensor covering all platforms
