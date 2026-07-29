@@ -19,7 +19,7 @@ async def fetch_with_retry(session: aiohttp.ClientSession, url: str, timeout: fl
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
                 resp.raise_for_status()
                 return await resp.text() if as_text else await resp.json()
-        except (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError, asyncio.TimeoutError) as err:
+        except (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError, aiohttp.ClientResponseError, asyncio.TimeoutError) as err:
             last_err = err
             if attempt < MAX_RETRIES - 1:
                 _LOGGER.debug("API attempt %d failed: %s, retrying...", attempt + 1, err)

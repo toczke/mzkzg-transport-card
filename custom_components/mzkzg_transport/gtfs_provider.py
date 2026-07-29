@@ -202,7 +202,7 @@ async def get_gtfs_data(coord=None, force_refresh: bool = False) -> GtfsData:
                     data = await resp.read()
                 # Save to disk
                 try:
-                    GTFS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                    await asyncio.to_thread(GTFS_CACHE_DIR.mkdir, parents=True, exist_ok=True)
                     await asyncio.to_thread(cache_file.write_bytes, data)
                 except OSError:
                     _LOGGER.debug("Could not write GTFS cache to disk")

@@ -12,7 +12,7 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "custom_components"))
 
 from mzkzg_transport.const import (
-    DOMAIN, PROVIDER_ZTM, PROVIDER_ZKM, PROVIDER_MZK, PROVIDER_PLK,
+    DOMAIN, PROVIDER_ZTM, PROVIDER_ZKM, PROVIDER_MZK, PROVIDER_PLK, PROVIDER_LODZ,
     PLK_API_BASE, ZTM_GDANSK_DEPARTURES_URL, ZKM_GDYNIA_DELAYS_URL, ZKM_GDYNIA_ROUTES_URL,
 )
 from mzkzg_transport.coordinator import MzkzgTransportCoordinator
@@ -393,3 +393,267 @@ def test_plk_update_interval_respects_daily_cap(mock_hass):
     """Test PLK coordinator stays below the daily hard cap for a single station."""
     coordinator = MzkzgTransportCoordinator(mock_hass, "7534", PROVIDER_PLK, "Test", "fake-key")
     assert coordinator.update_interval.total_seconds() >= 108
+
+
+# ── MPK Łódź tests ────────────────────────────────────────────────────────────
+
+@pytest.mark.lodz
+@pytest.mark.asyncio
+async def test_lodz_fallback_min_default(mock_hass):
+    """Test _fallback_min returns default when coordinator has no options."""
+    from mzkzg_transport.provider_lodz import _fallback_min
+    from mzkzg_transport.const import DEFAULT_FALLBACK_MIN
+    coordinator = MzkzgTransportCoordinator(mock_hass, "100", PROVIDER_LODZ, "Test")
+    assert _fallback_min(coordinator) == DEFAULT_FALLBACK_MIN
+
+
+@pytest.mark.lodz
+@pytest.mark.asyncio
+async def test_lodz_fallback_min_custom(mock_hass):
+    """Test _fallback_min reads from coordinator options."""
+    from mzkzg_transport.provider_lodz import _fallback_min
+    coordinator = MzkzgTransportCoordinator(mock_hass, "100", PROVIDER_LODZ, "Test")
+    coordinator._options = {"fallback_min": 15}
+    assert _fallback_min(coordinator) == 15
+
+
+@pytest.mark.lodz
+def test_lodz_parse_board_xml():
+    """Test parsing Łódź stop board XML."""
+    from mzkzg_transport.provider_lodz import _parse_board_xml
+    from datetime import datetime
+    import xml.etree.ElementTree as ET
+
+    now = datetime(2026, 7, 27, 10, 0, 0)
+    xml = """<?xml version="1.0" encoding="utf-16"?>
+    <Timetable>
+      <Stop name="Test Stop" id="100" ds="32"/>
+      <Day>
+        <R nr="53A" dir="NOWOSOLNA" vt="B" vuw="N">
+          <S tm="12" th="10" veh="T" nb="1155"/>
+          <S tm="30" th="10" veh="N"/>
+        </R>
+        <R nr="64B" dir="RETKINIA" vt="B" vuw="">
+          <S tm="10min" veh="T" nb="1200"/>
+        </R>
+      </Day>
+    </Timetable>"""
+
+    coord = MagicMock()
+    coord.provider = PROVIDER_LODZ
+    deps = _parse_board_xml(xml, now, coord)
+
+    assert len(deps) == 3
+
+    # First departure: 53A at 10:12, RT, vehicle 1155
+    assert deps[0]["route"] == "53A"
+    assert deps[0]["headsign"] == "NOWOSOLNA"
+    assert "10:12" in deps[0]["estimated_time"]
+    assert deps[0]["realtime"] is True
+    assert deps[0]["vehicle_code"] == "1155"
+    assert deps[0]["delay_seconds"] == 0
+
+    # Second departure: 53A at 10:30, schedule-only
+    assert deps[1]["route"] == "53A"
+    assert "10:30" in deps[1]["estimated_time"]
+    assert deps[1]["realtime"] is False
+    assert deps[1]["vehicle_code"] is None
+
+    # First departure has vuw="N" → wheelchair_accessible=True
+    assert deps[0]["wheelchair_accessible"] is True
+    assert deps[0]["bike_allowed"] is False
+    assert deps[0]["air_conditioning"] is False
+    assert deps[0]["ticket_machine"] is False
+
+    # Third departure: 64B in 10 min (relative time)
+    assert deps[2]["route"] == "64B"
+    assert deps[2]["realtime"] is True
+    assert deps[2]["vehicle_code"] == "1200"
+
+
+@pytest.mark.lodz
+def test_lodz_enrich_with_delays():
+    """Test GTFS-RT delay enrichment matches by (route, stop_id)."""
+    from mzkzg_transport.provider_lodz import _enrich_with_delays
+    from datetime import datetime
+
+    deps = [
+        {"route": "53A", "theoretical_time": "2026-07-27T10:12:00", "estimated_time": "2026-07-27T10:12:00", "delay_seconds": 0, "realtime": False},
+        {"route": "64B", "theoretical_time": "2026-07-27T10:30:00", "estimated_time": "2026-07-27T10:30:00", "delay_seconds": 0, "realtime": False},
+        {"route": "N7A", "theoretical_time": "2026-07-27T11:00:00", "estimated_time": "2026-07-27T11:00:00", "delay_seconds": 0, "realtime": False},
+    ]
+    delays = {("53A", "100"): 120, ("64B", "100"): -60}
+    stop_mapping = {"100": ["100", "115"]}
+
+    _enrich_with_delays(deps, delays, stop_mapping, "100")
+
+    # 53A matched by route "53A" + stop_id "100"
+    assert deps[0]["realtime"] is True
+    assert deps[0]["delay_seconds"] == 120
+    assert "10:14" in deps[0]["estimated_time"]
+
+    # 64B matched, negative delay
+    assert deps[1]["realtime"] is True
+    assert deps[1]["delay_seconds"] == -60
+    assert "10:29" in deps[1]["estimated_time"]
+
+    # N7A has no delay entry for (N7A, 100) or (N7A, 115)
+    assert deps[2]["realtime"] is False
+    assert deps[2]["delay_seconds"] == 0
+
+
+@pytest.mark.lodz
+def test_lodz_enrich_no_stop_mapping():
+    """Test enrichment does nothing when stop mapping is empty."""
+    from mzkzg_transport.provider_lodz import _enrich_with_delays
+
+    deps = [{"route": "53A", "theoretical_time": "2026-07-27T10:12:00", "estimated_time": "2026-07-27T10:12:00", "delay_seconds": 0, "realtime": False}]
+    delays = {("53A", "100"): 120}
+
+    _enrich_with_delays(deps, delays, {"100": []}, "100")
+    assert deps[0]["realtime"] is False
+
+    _enrich_with_delays(deps, delays, {}, "100")
+    assert deps[0]["realtime"] is False
+
+
+@pytest.mark.lodz
+@pytest.mark.asyncio
+async def test_lodz_fetch_empty_boards_fallback(mock_hass):
+    """Test fetch uses GTFS fallback when all API boards fail."""
+    from mzkzg_transport import provider_lodz
+    from mzkzg_transport.provider_lodz import _fallback_min
+    from mzkzg_transport.const import DOMAIN
+
+    coordinator = MzkzgTransportCoordinator(mock_hass, "205", PROVIDER_LODZ, "Test Stop")
+
+    with aioresponses() as m:
+        # All 20 boards fail with empty response
+        for nr in range(1, 21):
+            m.get(
+                f"http://rozklady.lodz.pl/Home/GetTimetableReal?busStopId=205&busStopNr={nr}",
+                body="",
+                status=200,
+            )
+        with patch.object(provider_lodz, "_get_gtfs_zip", return_value=b"fake_zip"):
+            with patch.object(provider_lodz.zipfile.ZipFile, "__init__", side_effect=Exception("No GTFS")):
+                result = await provider_lodz.fetch(coordinator)
+
+    assert result["stop_id"] == "205"
+    assert result["provider"] == PROVIDER_LODZ
+    # Without GTFS fallback (mock fails), should return empty departures
+    assert len(result["departures"]) == 0
+
+
+@pytest.mark.lodz
+@pytest.mark.asyncio
+async def test_lodz_fetch_single_board(mock_hass):
+    """Test fetch with single-board stop_id (busStopId:stopNr format)."""
+    from mzkzg_transport import provider_lodz
+
+    coordinator = MzkzgTransportCoordinator(mock_hass, "100:3", PROVIDER_LODZ, "Test Single")
+
+    with aioresponses() as m:
+        m.get(
+            "http://rozklady.lodz.pl/Home/GetTimetableReal?busStopId=100&busStopNr=3",
+            body="""<?xml version="1.0"?>
+            <Timetable>
+              <Stop name="Brzezińska-Janosika" id="100" ds="32"/>
+              <Day>
+                <R nr="53A" dir="NOWOSOLNA" vt="B">
+                  <S tm="12" th="23" veh="T" nb="1155"/>
+                </R>
+              </Day>
+            </Timetable>""",
+            status=200,
+        )
+        # Stop_mapping building needs GTFS zip - mock it
+        import zipfile
+        with patch.object(provider_lodz, "_get_gtfs_zip", return_value=b"fake"):
+            with patch.object(zipfile.ZipFile, "open", side_effect=Exception("No GTFS")):
+                result = await provider_lodz.fetch(coordinator)
+
+    assert result["stop_id"] == "100:3"
+    assert result["provider"] == PROVIDER_LODZ
+    assert len(result["departures"]) == 1
+    assert result["departures"][0]["route"] == "53A"
+    assert result["departures"][0]["headsign"] == "NOWOSOLNA"
+
+
+@pytest.mark.lodz
+@pytest.mark.asyncio
+async def test_lodz_fetch_rt_preservation(mock_hass):
+    """Test that old RT departures are preserved when API returns empty."""
+    from mzkzg_transport import provider_lodz
+
+    coordinator = MzkzgTransportCoordinator(mock_hass, "205", PROVIDER_LODZ, "Test")
+    # Seed previous data with a realtime departure
+    old_rt_time = (datetime.now() + timedelta(minutes=5)).isoformat()
+    coordinator.data = {
+        "departures": [
+            {"route": "53A", "headsign": "X", "estimated_time": old_rt_time, "realtime": True, "delay_seconds": 60, "provider": PROVIDER_LODZ},
+        ]
+    }
+
+    with aioresponses() as m:
+        for nr in range(1, 21):
+            m.get(
+                f"http://rozklady.lodz.pl/Home/GetTimetableReal?busStopId=205&busStopNr={nr}",
+                body="",
+                status=200,
+            )
+        with patch.object(provider_lodz, "_get_gtfs_zip", return_value=None):
+            result = await provider_lodz.fetch(coordinator)
+
+    # The old RT departure should be preserved (within 120s of now)
+    assert len(result["departures"]) == 1
+    assert result["departures"][0]["realtime"] is True
+    assert result["departures"][0]["route"] == "53A"
+
+
+@pytest.mark.lodz
+@pytest.mark.asyncio
+async def test_lodz_fetch_enrich_with_delays(mock_hass):
+    """Test fetch applies GTFS-RT delays when stop mapping succeeds."""
+    from mzkzg_transport import provider_lodz
+
+    coordinator = MzkzgTransportCoordinator(mock_hass, "205", PROVIDER_LODZ, "Test")
+
+    # Create a realistic stop_mapping and gtfs data
+    gtfs_mock = {"stops": {}, "routes": {}, "trips": {}, "stop_times": {}, "_raw": b""}
+
+    with patch.object(provider_lodz, "_load_gtfs") as mock_load:
+        mock_load.return_value = {
+            "stop_mapping": {"205": ["205"], "1854": ["205"]},
+            "gtfs": gtfs_mock,
+        }
+        with aioresponses() as m:
+            # One board returns departures
+            m.get(
+                "http://rozklady.lodz.pl/Home/GetTimetableReal?busStopId=205&busStopNr=1",
+                body="""<?xml version="1.0"?>
+                <Timetable>
+                  <Stop name="Okólna-Secesyjna NŻ" id="205" ds="32"/>
+                  <Day>
+                    <R nr="61" dir="DW. ŁÓDŹ WIDZEW" vt="B">
+                      <S tm="15" th="23" veh="N"/>
+                    </R>
+                  </Day>
+                </Timetable>""",
+                status=200,
+            )
+            # Other boards fail
+            for nr in range(2, 21):
+                m.get(
+                    f"http://rozklady.lodz.pl/Home/GetTimetableReal?busStopId=205&busStopNr={nr}",
+                    body="",
+                    status=200,
+                )
+            # GTFS-RT trip_updates - mock as empty
+            with patch.object(provider_lodz, "_fetch_delays", return_value={("61", "205"): 90}):
+                result = await provider_lodz.fetch(coordinator)
+
+    assert len(result["departures"]) == 1
+    assert result["departures"][0]["route"] == "61"
+    assert result["departures"][0]["realtime"] is True
+    assert result["departures"][0]["delay_seconds"] == 90
