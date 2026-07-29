@@ -247,6 +247,40 @@ GTFSRT_CITIES = {
         "positions_format": "gtfsrt_protobuf",
         "label": "MKS Mielec",
     },
+    "gtfs_oswiecim": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/oswiecim/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/oswiecim/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/oswiecim/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MZK Oświęcim",
+    },
+    "gtfs_radomsko": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/radomsko/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/radomsko/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/radomsko/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MPK Radomsko",
+    },
+    "gtfs_debica": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/debica/gtfs/default",
+        "rt_url": None,
+        "label": "MKS Dębica",
+    },
+    "gtfs_kolobrzeg": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/kolobrzeg/gtfs/default",
+        "rt_url": None,
+        "label": "KM Kołobrzeg",
+    },
+    "gtfs_sanok": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/sanok/gtfs/default",
+        "rt_url": None,
+        "label": "SPGK Sanok",
+    },
+    "gtfs_ostroleka": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/ostroleka/gtfs/default",
+        "rt_url": None,
+        "label": "MZK Ostrołęka",
+    },
     "gtfs_leszno": {
         "gtfs_url": "https://cdn.zbiorkom.live/gtfs/leszno.zip",
         "rt_url": None,
