@@ -391,6 +391,7 @@ ha-card.e-ink .dep-row { transition: none; }
 .icons { display: inline-flex; gap: 3px; align-items: center; flex-shrink: 0; white-space: nowrap; flex-basis: 100%; width: 100%; margin-top: 1px; }
 .icons svg { color: var(--mzkzg-muted); opacity: 0.8; }
 .platform { display: inline-flex; align-items: center; justify-content: center; background: var(--chip-background, #e5e7eb); color: var(--chip-color, #374151); border-radius: 6px; padding: 1px 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; flex-shrink: 0; }
+.map-pin { display: inline-flex; align-items: center; margin: 0 2px 0 -2px; font-size: 13px; opacity: 0.7; flex-shrink: 0; cursor: pointer; }
 .meta-row { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; margin-top: 1px; }
 .stop-name { display: block; font-size: 10px; color: var(--mzkzg-muted); font-weight: 400; margin-top: 1px; width: 100%; }
 ha-card.compact .stop-name { display: none; }
@@ -1868,6 +1869,7 @@ class MzkzgTransportCard extends HTMLElement {
       const rowLabel = `${d.route} → ${d.headsign}, ${formatTime(d.estimated_time || d.theoretical_time)}${mins !== null && mins >= 0 ? ` (${mins} ${t("min")})` : ""}`;
       const hasPos = parseVehiclePosition(d.vehicle_lat, d.vehicle_lng) !== null;
       const isInteractive = hasRowActions || hasPos;
+      const mapIcon = hasPos ? `<span class="map-pin" title="Live map"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>` : "";
       const dir = d.vehicle_direction || d.direction || "";
       const isLowFloor = d.floor_height && d.floor_height !== "Pojazd wysokopodłogowy";
       const isElectric = d.drive_type === "elektryczny";
@@ -1877,7 +1879,7 @@ class MzkzgTransportCard extends HTMLElement {
       const rowAttrs = `data-entity-id="${escapeHtml(d._entityId || "")}"`;
       return `<div class="dep-row${isInteractive ? " interactive" : ""}${imminent ? " imminent" : ""}${d._dimmed ? " dimmed" : ""}${cancelled ? " cancelled" : ""}" ${isInteractive ? `tabindex="0" role="button" aria-label="${escapeHtml(rowLabel)}"` : ""}${rowAttrs}${extras}>
         <span class="badge" style="background:${routeColor(d.route, d._provider || d.provider)}">${escapeHtml(d.route)}</span>
-        <span class="headsign"><span class="head-main"><span class="headsign-text">${escapeHtml(d.headsign)}</span>${vehicleChip}</span>${metaRow}${trainInfo || (showStop ? `<span class="stop-name">${escapeHtml(cleanStopName)}</span>` : "")}</span>
+        ${mapIcon}<span class="headsign"><span class="head-main"><span class="headsign-text">${escapeHtml(d.headsign)}</span>${vehicleChip}</span>${metaRow}${trainInfo || (showStop ? `<span class="stop-name">${escapeHtml(cleanStopName)}</span>` : "")}</span>
         <div class="time-col">${timeHTML}</div>
       </div>`;
       } catch (_) { return ""; }
