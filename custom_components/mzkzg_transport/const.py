@@ -72,6 +72,8 @@ PROVIDER_OLSZTYN = "gtfs_olsztyn"
 PROVIDER_OPOLE = "gtfs_opole"
 PROVIDER_RZESZOW = "gtfs_rzeszow"
 PROVIDER_LESZNO = "gtfs_leszno"
+PROVIDER_MIELEC = "gtfs_mielec"
+PROVIDER_BYDGOSZCZ = "gtfs_bydgoszcz"
 PROVIDER_WROCLAW = "gtfsrt_wroclaw"
 PROVIDER_SWINOUJSCIE = "gtfs_swinoujscie"
 PROVIDER_WALBRZYCH = "gtfs_walbrzych"
@@ -156,6 +158,8 @@ PROVIDER_LABELS = {
     PROVIDER_OLSZTYN: "ZDZiT Olsztyn",
     PROVIDER_OPOLE: "MZK Opole",
     PROVIDER_RZESZOW: "ZTM Rzeszów",
+    PROVIDER_BYDGOSZCZ: "ZDMiKP Bydgoszcz",
+    PROVIDER_MIELEC: "MKS Mielec",
     PROVIDER_LESZNO: "MZK Leszno",
     PROVIDER_SWINOUJSCIE: "KA Świnoujście",
     PROVIDER_WALBRZYCH: "ZKM Wałbrzych",
@@ -213,6 +217,8 @@ PROVIDER_COLORS = {
     PROVIDER_OLSZTYN: "#065f46",
     PROVIDER_OPOLE: "#7c2d12",
     PROVIDER_RZESZOW: "#4338ca",
+    PROVIDER_BYDGOSZCZ: "#1e40af",
+    PROVIDER_MIELEC: "#c2410c",
     PROVIDER_LESZNO: "#0f766e",
     PROVIDER_SWINOUJSCIE: "#475569",
     PROVIDER_WALBRZYCH: "#1a5276",

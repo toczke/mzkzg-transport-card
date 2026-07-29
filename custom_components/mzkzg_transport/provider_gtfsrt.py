@@ -235,6 +235,18 @@ GTFSRT_CITIES = {
         "positions_format": "gtfsrt_protobuf",
         "label": "KA Świnoujście",
     },
+    "gtfs_bydgoszcz": {
+        "gtfs_url": "https://mkuran.pl/gtfs/bydgoszcz.zip",
+        "rt_url": None,
+        "label": "ZDMiKP Bydgoszcz",
+    },
+    "gtfs_mielec": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/mielec/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/mielec/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/mielec/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MKS Mielec",
+    },
     "gtfs_leszno": {
         "gtfs_url": "https://cdn.zbiorkom.live/gtfs/leszno.zip",
         "rt_url": None,
