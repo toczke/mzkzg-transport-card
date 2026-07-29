@@ -2,46 +2,63 @@
   "config": {
     "step": {
       "user": {
-        "title": "Polish Public Transport",
-        "description": "Wybierz operatora transportu.",
+        "title": "Polish Public Transport Card",
+        "description": "Wybierz dostawcę transportu publicznego.",
         "data": {
-          "provider": "Operator"
+          "provider": "Dostawca"
         }
       },
       "api_key": {
         "title": "Klucz API PLK",
-        "description": "Podaj klucz API PKP PLK OpenData. Uzyskaj na https://dane.plk-sa.pl",
+        "description": "Wprowadź klucz API PKP PLK OpenData. Zarejestruj się na https://dane.plk-sa.pl",
         "data": {
-          "api_key": "Klucz API"
+          "api_key": "Klucz API",
+          "plk_tier": "Limit zapytań"
         }
       },
       "stop": {
-        "title": "Wybierz przystanek",
+        "title": "Wybierz przystanek — {provider}",
         "description": "Wybierz przystanek z listy lub wpisz ID ręcznie.",
         "data": {
           "stop_id": "Przystanek",
-          "name": "Własna nazwa (opcjonalna)"
+          "name": "Własna nazwa (opcjonalnie)"
+        }
+      },
+      "lodz_mode": {
+        "title": "MPK Łódź — typ przystanku",
+        "description": "Wybierz pojedynczy przystanek lub węzeł przesiadkowy (grupę przystanków).",
+        "data": {
+          "mode": "Tryb"
+        }
+      },
+      "lodz_group": {
+        "title": "Łódź — węzeł przesiadkowy",
+        "description": "Wybierz grupę przystanków. Odjazdy będą pobierane ze wszystkich przystanków w grupie.",
+        "data": {
+          "group_id": "Węzeł"
         }
       }
     },
     "error": {
-      "invalid_stop_id": "Podaj prawidłowe ID przystanku",
-      "api_key_required": "Klucz API PLK jest wymagany"
+      "invalid_stop_id": "Wprowadź poprawny identyfikator przystanku",
+      "api_key_required": "Klucz API PLK jest wymagany",
+      "invalid_group": "Wybrano nieprawidłową grupę przystanków"
     },
     "abort": {
-      "already_configured": "Ten przystanek jest już skonfigurowany"
+      "already_configured": "Ten przystanek jest już skonfigurowany",
+      "lodz_groups_failed": "Nie udało się pobrać grup przystanków — sprawdź połączenie sieciowe"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Ustawienia",
-        "description": "Tryb uśpienia wstrzymuje odpytywanie API w godzinach nocnych.",
+        "description": "Skonfiguruj tryb uśpienia, aby wstrzymać odpytywanie API w godzinach nocnych.",
         "data": {
           "sleep_enabled": "Włącz tryb uśpienia",
           "sleep_start": "Początek uśpienia (GG:MM)",
           "sleep_end": "Koniec uśpienia (GG:MM)",
-          "fallback_min": "Minimalna liczba rozkładowych odjazdów dla Łodzi"
+          "fallback_min": "Minimalna liczba odjazdów do uzupełnienia rozkładem (Łódź)"
         }
       }
     }

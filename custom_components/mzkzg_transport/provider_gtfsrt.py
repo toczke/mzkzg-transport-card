@@ -235,6 +235,52 @@ GTFSRT_CITIES = {
         "positions_format": "gtfsrt_protobuf",
         "label": "KA Świnoujście",
     },
+    "gtfs_bydgoszcz": {
+        "gtfs_url": "https://mkuran.pl/gtfs/bydgoszcz.zip",
+        "rt_url": None,
+        "label": "ZDMiKP Bydgoszcz",
+    },
+    "gtfs_mielec": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/mielec/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/mielec/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/mielec/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MKS Mielec",
+    },
+    "gtfs_oswiecim": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/oswiecim/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/oswiecim/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/oswiecim/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MZK Oświęcim",
+    },
+    "gtfs_radomsko": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/radomsko/gtfs/default",
+        "rt_url": "https://api.zbiorkom.live/api6-open/radomsko/gtfsRealtime/default/tripUpdates",
+        "positions_url": "https://api.zbiorkom.live/api6-open/radomsko/gtfsRealtime/default/vehiclePositions",
+        "positions_format": "gtfsrt_protobuf",
+        "label": "MPK Radomsko",
+    },
+    "gtfs_debica": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/debica/gtfs/default",
+        "rt_url": None,
+        "label": "MKS Dębica",
+    },
+    "gtfs_kolobrzeg": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/kolobrzeg/gtfs/default",
+        "rt_url": None,
+        "label": "KM Kołobrzeg",
+    },
+    "gtfs_sanok": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/sanok/gtfs/default",
+        "rt_url": None,
+        "label": "SPGK Sanok",
+    },
+    "gtfs_ostroleka": {
+        "gtfs_url": "https://api.zbiorkom.live/api6-open/ostroleka/gtfs/default",
+        "rt_url": None,
+        "label": "MZK Ostrołęka",
+    },
     "gtfs_leszno": {
         "gtfs_url": "https://cdn.zbiorkom.live/gtfs/leszno.zip",
         "rt_url": None,
@@ -534,7 +580,7 @@ async def _fetch_range(session, url: str, start: int, end: int):
     """Fetch bytes [start, end] of a remote file. Returns (data, status) or (None, status)."""
     headers = {"Range": f"bytes={start}-{end}"}
     async with session.get(
-        url, headers=headers, timeout=aiohttp.ClientTimeout(total=30), ssl=False
+        url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)
     ) as resp:
         if resp.status not in (200, 206):
             return None, resp.status
@@ -684,7 +730,7 @@ async def _get_gtfs_data(coord, session, city_cfg, now):
                 _LOGGER.warning("GTFS-RT: could not get dynamic URL for GZM")
                 return None
 
-        async with session.get(gtfs_url, timeout=aiohttp.ClientTimeout(total=120), ssl=False) as resp:
+        async with session.get(gtfs_url, timeout=aiohttp.ClientTimeout(total=120)) as resp:
             if resp.status != 200:
                 return None
             data = await resp.read()
@@ -694,7 +740,7 @@ async def _get_gtfs_data(coord, session, city_cfg, now):
         # Merge secondary GTFS zip (e.g. Kraków tram)
         if city_cfg.get("gtfs_url_tram"):
             try:
-                async with session.get(city_cfg["gtfs_url_tram"], timeout=aiohttp.ClientTimeout(total=120), ssl=False) as resp2:
+                async with session.get(city_cfg["gtfs_url_tram"], timeout=aiohttp.ClientTimeout(total=120)) as resp2:
                     if resp2.status == 200:
                         data2 = await resp2.read()
                         gtfs2 = _parse_gtfs_zip(data2)
@@ -962,7 +1008,7 @@ async def _get_vehicle_dict(coord, session, city_cfg) -> dict:
             return cached.get("data", {})
     
     try:
-        async with session.get(city_cfg["vehicles_url"], timeout=aiohttp.ClientTimeout(total=15), ssl=False) as resp:
+        async with session.get(city_cfg["vehicles_url"], timeout=aiohttp.ClientTimeout(total=15)) as resp:
             if resp.status != 200:
                 return {}
             text = await resp.text()
@@ -1010,7 +1056,7 @@ async def _get_vehicle_dict(coord, session, city_cfg) -> dict:
             # Fetch tram positions if separate URL
             if city_cfg.get("vehicles_url_tram"):
                 try:
-                    async with session.get(city_cfg["vehicles_url_tram"], timeout=aiohttp.ClientTimeout(total=15), ssl=False) as resp2:
+                    async with session.get(city_cfg["vehicles_url_tram"], timeout=aiohttp.ClientTimeout(total=15)) as resp2:
                         if resp2.status == 200:
                             text2 = await resp2.text()
                             raw2 = json.loads(text2)
@@ -1069,7 +1115,7 @@ async def _enrich_with_gps_positions(coord, session, city_cfg, departures):
     positions = {}
     try:
         if "/api/v2/vehicles" in url:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15), ssl=False) as resp:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     for item in data.get("data", []):
@@ -1078,7 +1124,7 @@ async def _enrich_with_gps_positions(coord, session, city_cfg, departures):
                         if vn and "latitude" in pos and "longitude" in pos:
                             positions[str(vn)] = {"lat": pos["latitude"], "lng": pos["longitude"], "bearing": pos.get("bearing"), "speed": pos.get("velocity")}
         elif "positions.json" in url:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15), ssl=False) as resp:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     for p in data.get("positions", []):
@@ -1094,7 +1140,7 @@ async def _enrich_with_gps_positions(coord, session, city_cfg, departures):
                         if tid:
                             positions[tid] = entry
         elif city_cfg.get("positions_format") == "gtfsrt_protobuf" or url.endswith(".pb"):
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15), ssl=False) as resp:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 if resp.status == 200:
                     positions = _parse_gtfsrt_positions(await resp.read())
         _apply_positions(departures, positions)
@@ -1176,7 +1222,7 @@ async def _get_rt_delays(session, rt_url: str) -> dict:
     last_err = None
     for attempt in range(3):
         try:
-            async with session.get(rt_url, timeout=aiohttp.ClientTimeout(total=15), ssl=False) as resp:
+            async with session.get(rt_url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 if resp.status != 200:
                     return {}
                 data = await resp.read()

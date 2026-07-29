@@ -1,7 +1,6 @@
 """Config flow for MZKZG Transport."""
 
 
-from __future__ import annotations
 
 
 import logging
@@ -132,6 +131,14 @@ from .const import (
     PROVIDER_OLSZTYN,
     PROVIDER_OPOLE,
     PROVIDER_RZESZOW,
+    PROVIDER_BYDGOSZCZ,
+    PROVIDER_MIELEC,
+    PROVIDER_OSWIECIM,
+    PROVIDER_RADOMSKO,
+    PROVIDER_DEBICA,
+    PROVIDER_KOLOBRZEG,
+    PROVIDER_SANOK,
+    PROVIDER_OSTROLEKA,
     PROVIDER_LESZNO,
     PROVIDER_TORUN,
     PROVIDER_WROCLAW,
@@ -215,6 +222,14 @@ PROVIDER_OPTIONS = {
     PROVIDER_RZESZOW: "ZTM Rzeszów",
     PROVIDER_TORUN: "MZK Toruń",
     PROVIDER_WROCLAW: "MPK Wrocław",
+    PROVIDER_BYDGOSZCZ: "ZDMiKP Bydgoszcz",
+    PROVIDER_MIELEC: "MKS Mielec",
+    PROVIDER_OSWIECIM: "MZK Oświęcim",
+    PROVIDER_RADOMSKO: "MPK Radomsko",
+    PROVIDER_DEBICA: "MKS Dębica",
+    PROVIDER_KOLOBRZEG: "KM Kołobrzeg",
+    PROVIDER_SANOK: "SPGK Sanok",
+    PROVIDER_OSTROLEKA: "MZK Ostrołęka",
     PROVIDER_LESZNO: "MZK Leszno",
     PROVIDER_SWINOUJSCIE: "KA Świnoujście",
     PROVIDER_WALBRZYCH: "ZKM Wałbrzych",
@@ -1252,7 +1267,7 @@ class MzkzgTransportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.debug("GTFS stops: downloading %s", gtfs_url)
             session = async_get_clientsession(self.hass)
             async with session.get(
-                gtfs_url, timeout=aiohttp.ClientTimeout(total=120), ssl=False
+                gtfs_url, timeout=aiohttp.ClientTimeout(total=120)
             ) as resp:
                 resp.raise_for_status()
                 data = await resp.read()

@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "MZKZG Transport",
-        "description": "Select the transport provider.",
+        "title": "Polish Public Transport Card",
+        "description": "Select the transport provider to configure.",
         "data": {
           "provider": "Provider"
         }
@@ -12,7 +12,8 @@
         "title": "PLK API Key",
         "description": "Enter your PKP PLK OpenData API key. Get one at https://dane.plk-sa.pl",
         "data": {
-          "api_key": "API Key"
+          "api_key": "API Key",
+          "plk_tier": "Usage tier"
         }
       },
       "stop": {
@@ -24,23 +25,24 @@
         }
       },
       "lodz_mode": {
-        "title": "MPK Łódź — typ przystanku",
-        "description": "Wybierz pojedynczy przystanek lub węzeł przesiadkowy (grupę przystanków).",
+        "title": "MPK Łódź — stop type",
+        "description": "Choose a single stop or a bus stop group (transfer hub).",
         "data": {
-          "mode": "Tryb"
+          "mode": "Mode"
         }
       },
       "lodz_group": {
-        "title": "Łódź — węzeł przesiadkowy",
-        "description": "Wybierz grupę przystanków. Odjazdy będą pobierane ze wszystkich przystanków w grupie.",
+        "title": "Łódź — transfer hub",
+        "description": "Select a bus stop group. Departures will be fetched from all stops in the group.",
         "data": {
-          "group_id": "Węzeł"
+          "group_id": "Hub"
         }
       }
     },
     "error": {
       "invalid_stop_id": "Enter a valid stop ID",
-      "api_key_required": "PLK API key is required"
+      "api_key_required": "PLK API key is required",
+      "invalid_group": "Invalid bus stop group selected"
     },
     "abort": {
       "already_configured": "This stop is already configured",

@@ -1,6 +1,5 @@
 """GTFS static data provider for MZK Wejherowo."""
 
-from __future__ import annotations
 
 import asyncio
 import csv

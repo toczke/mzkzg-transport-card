@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Polish Public Transport",
+        "title": "Polish Public Transport Card",
         "description": "Select the transport provider.",
         "data": {
           "provider": "Provider"
@@ -10,9 +10,10 @@
       },
       "api_key": {
         "title": "PLK API Key",
-        "description": "Enter your PKP PLK OpenData API key. Get one at https://dane.plk-sa.pl",
+        "description": "Enter your PKP PLK OpenData API key.",
         "data": {
-          "api_key": "API Key"
+          "api_key": "API Key",
+          "plk_tier": "Usage tier"
         }
       },
       "stop": {
@@ -22,14 +23,30 @@
           "stop_id": "Stop",
           "name": "Custom name (optional)"
         }
+      },
+      "lodz_mode": {
+        "title": "MPK Łódź — stop type",
+        "description": "Choose a single stop or a bus stop group (transfer hub).",
+        "data": {
+          "mode": "Mode"
+        }
+      },
+      "lodz_group": {
+        "title": "Łódź — transfer hub",
+        "description": "Select a bus stop group. Departures will be fetched from all stops in the group.",
+        "data": {
+          "group_id": "Hub"
+        }
       }
     },
     "error": {
       "invalid_stop_id": "Enter a valid stop ID",
-      "api_key_required": "PLK API key is required"
+      "api_key_required": "PLK API key is required",
+      "invalid_group": "Invalid bus stop group selected"
     },
     "abort": {
-      "already_configured": "This stop is already configured"
+      "already_configured": "This stop is already configured",
+      "lodz_groups_failed": "Failed to load bus stop groups — check network connection"
     }
   },
   "options": {
