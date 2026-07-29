@@ -1,7 +1,6 @@
 """Config flow for MZKZG Transport."""
 
 
-from __future__ import annotations
 
 
 import logging
@@ -1268,7 +1267,7 @@ class MzkzgTransportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.debug("GTFS stops: downloading %s", gtfs_url)
             session = async_get_clientsession(self.hass)
             async with session.get(
-                gtfs_url, timeout=aiohttp.ClientTimeout(total=120), ssl=False
+                gtfs_url, timeout=aiohttp.ClientTimeout(total=120)
             ) as resp:
                 resp.raise_for_status()
                 data = await resp.read()
