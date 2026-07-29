@@ -390,6 +390,7 @@ ha-card.e-ink .dep-row { transition: none; }
 .headsign-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; max-width: 100%; }
 .icons { display: inline-flex; gap: 3px; align-items: center; flex-shrink: 0; white-space: nowrap; flex-basis: 100%; width: 100%; margin-top: 1px; }
 .icons svg { color: var(--mzkzg-muted); opacity: 0.8; }
+.platform { display: inline-flex; align-items: center; justify-content: center; background: var(--chip-background, #e5e7eb); color: var(--chip-color, #374151); border-radius: 6px; padding: 1px 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; flex-shrink: 0; }
 .meta-row { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; margin-top: 1px; }
 .stop-name { display: block; font-size: 10px; color: var(--mzkzg-muted); font-weight: 400; margin-top: 1px; width: 100%; }
 ha-card.compact .stop-name { display: none; }
@@ -592,6 +593,7 @@ class MzkzgTransportCardEditor extends HTMLElement {
     const checked = id => this.shadowRoot.getElementById(id)?.checked === true;
     return {
       filter_routes: normalizeList(val("entity_filter_routes")),
+      max_departures: val("entity_max_departures") ? parseInt(val("entity_max_departures")) || null : null,
       destination_filter: normalizeList(val("entity_destination_filter")),
       filter_platform: val("entity_filter_platform").trim(),
       filter_track: val("entity_filter_track").trim(),
@@ -665,6 +667,7 @@ class MzkzgTransportCardEditor extends HTMLElement {
       if (!hasLocalOverride) return eid;
       const clean = { entity: eid };
       if (Array.isArray(merged.filter_routes) && merged.filter_routes.length) clean.filter_routes = merged.filter_routes;
+      if (merged.max_departures > 0) clean.max_departures = merged.max_departures;
       if (Array.isArray(merged.destination_filter) && merged.destination_filter.length) clean.destination_filter = merged.destination_filter;
       if (merged.filter_platform) clean.filter_platform = String(merged.filter_platform);
       if (merged.filter_track) clean.filter_track = String(merged.filter_track);
@@ -888,6 +891,10 @@ class MzkzgTransportCardEditor extends HTMLElement {
             <div class="field">
               <label for="entity_filter_routes">Linie (sensor)</label>
               <input id="entity_filter_routes" type="text" value="${escapeHtml((activeEntry?.filter_routes || []).join(", "))}" placeholder="np. 2, 8, N1" />
+            </div>
+            <div class="field">
+              <label for="entity_max_departures">Max odjazdów (sensor)</label>
+              <input id="entity_max_departures" type="text" inputmode="numeric" value="${activeEntry?.max_departures ?? ""}" placeholder="Globalne" />
             </div>
             <div class="field">
               <label for="entity_destination_filter">Kierunki (sensor)</label>
@@ -1144,6 +1151,7 @@ class MzkzgTransportCard extends HTMLElement {
     // Get all departures without route/destination/platform filters (for "next departure" hint)
     if (!this._hass || !this._config.entities?.length) return [];
     let deps = [];
+    const showProviderHeaders = !c.group_by_provider || c.group_by_provider === true;
     for (const entityCfg of this._getEntityEntries()) {
       const eid = typeof entityCfg === "string" ? entityCfg : entityCfg.entity;
       const s = this._hass.states[eid];
@@ -1174,7 +1182,10 @@ class MzkzgTransportCard extends HTMLElement {
       for (const d of (Array.isArray(state.attributes.departures) ? state.attributes.departures : [])) {
         try {
           if (!d || typeof d !== "object") continue;
-          deps.push({ ...d, _provider: d.provider || provider, _stopName: stopName, _entityConfig: entityCfg, _entityId: entityCfg.entity });
+          if (showProviderHeaders && deps.length > 0 && (deps[deps.length-1]._provider !== (d.provider || provider))) {
+            deps.push({ _header: d.provider || provider, _headerLabel: PROVIDER_LABELS[d.provider] || d.provider, _stopName: stopName, _entityConfig: entityCfg, _entityId: entityCfg.entity });
+          }
+          deps.push({ ...d, _provider: d.provider || provider, _stopName: stopName, _entityConfig: entityCfg, _entityId: entityCfg.entity, _provider_label: providerLabel });
         } catch (_) { /* skip malformed departure */ }
       }
     }
@@ -1246,7 +1257,8 @@ class MzkzgTransportCard extends HTMLElement {
       return ma - mb;
     });
 
-    return deps.slice(0, c.max_departures);
+    const cap = d._entityConfig?.max_departures || c.max_departures;
+    return deps.slice(0, cap);
   }
 
   _preloadLeaflet() {
@@ -1311,17 +1323,6 @@ class MzkzgTransportCard extends HTMLElement {
       document.head.appendChild(s);
     }
 
-    const ctx = { overlay, container, vehicleCode: info.code, entityId: info.entityId, map: null, marker: null, interval: null, ro: null, destroyed: false };
-    ctx.destroy = () => {
-      if (ctx.destroyed) return;
-      ctx.destroyed = true;
-      if (ctx.interval) clearInterval(ctx.interval);
-      if (ctx.animFrame) cancelAnimationFrame(ctx.animFrame);
-      if (ctx.ro) ctx.ro.disconnect();
-      if (ctx.map) ctx.map.remove();
-      if (ctx.overlay && ctx.overlay.parentNode) ctx.overlay.parentNode.removeChild(ctx.overlay);
-    };
-    this._mapCtx = ctx;
 
     const color = routeColor(info.route, info.provider || "");
 
@@ -1334,28 +1335,90 @@ class MzkzgTransportCard extends HTMLElement {
         }).addTo(map);
         ctx.map = map;
 
-        const bearing = info.direction || 0;
-        const vt = info.vehicleType || "bus";
-        const mk = this._buildVehicleMarker(bearing, color, info.route, vt, info, isMobile);
-        const mkHtml = `<div class="zm-arrow" style="transform:rotate(${bearing}deg)">${mk.svg}</div>`;
+        // Stop location marker
+        window.L.circleMarker([lat, lng], { radius: 5, fillColor: color, fillOpacity: 0.5, color: "#fff", weight: 2 }).addTo(map);
 
-        const icon = window.L.divIcon({
-          className: "",
-          html: mkHtml,
-          iconSize: [mk.size, mk.arrowH],
-          iconAnchor: [mk.size / 2, mk.arrowH],
-        });
-        ctx.marker = window.L.marker([lat, lng], { icon }).addTo(map);
+        // Show all vehicles with GPS from this entity
+        this._renderAllVehicleMarkers(ctx, info, isMobile);
 
         ctx.ro = new window.ResizeObserver(() => { if (ctx.map) ctx.map.invalidateSize(); });
         ctx.ro.observe(container);
-
-        ctx.interval = setInterval(() => this._updateVehiclePosition(ctx), 30000);
+        ctx.interval = setInterval(() => this._updateAllVehiclePositions(ctx), 30000);
       });
     };
 
     if (window.L) { createMap(); }
     else { (this._leafletLoading || this._preloadLeaflet()).then(createMap); }
+  }
+
+  _renderAllVehicleMarkers(ctx, info, isMobile) {
+    if (!this._hass) return;
+    const state = this._hass.states[ctx.entityId];
+    if (!state?.attributes?.departures) return;
+
+    // Clear old markers
+    ctx.markers.forEach(m => ctx.map.removeLayer(m));
+    ctx.markers = [];
+
+    let hasMain = false;
+    const allDeps = state.attributes.departures || [];
+    for (const d of allDeps) {
+      const pos = parseVehiclePosition(d.vehicle_lat, d.vehicle_lng);
+      if (!pos) continue;
+
+      const isMain = d.vehicle_code && d.vehicle_code === ctx.vehicleCode;
+      const color = routeColor(d.route, d._provider || d.provider || "");
+      const bearing = d.vehicle_direction || d.direction || 0;
+      const size = isMain ? (isMobile ? 38 : 46) : (isMobile ? 26 : 32);
+      
+      if (isMain) hasMain = true;
+
+      const r = d.route || "?";
+      const b = bearing;
+      const mk = this._buildVehicleMarker(b, color, r, d.vehicle_type || "bus", d, isMobile);
+      const mkHtml = `<div class="zm-arrow" style="transform:rotate(${b}deg);opacity:${isMain ? 1 : 0.7}">${mk.svg}</div>`;
+      const icon = window.L.divIcon({
+        className: "",
+        html: mkHtml,
+        iconSize: [mk.size, mk.arrowH],
+        iconAnchor: [mk.size / 2, mk.arrowH],
+      });
+      const marker = window.L.marker([pos[0], pos[1]], { icon }).addTo(ctx.map);
+      ctx.markers.push(marker);
+    }
+
+    // If no main marker (vehicle_code mismatch), still add a highlight for the closest position
+    if (!hasMain && ctx.markers.length > 0) {
+      // All markers are already shown; we just track them
+    }
+  }
+
+  _updateAllVehiclePositions(ctx) {
+    if (ctx.destroyed || !ctx.entityId || !ctx.map || !this._hass) return;
+    const state = this._hass.states[ctx.entityId];
+    if (!state?.attributes?.departures) return;
+
+    const allDeps = state.attributes.departures || [];
+    // Clear and re-render all markers
+    ctx.markers.forEach(m => ctx.map.removeLayer(m));
+    ctx.markers = [];
+
+    const isMobile = window.innerWidth < 480;
+    for (const d of allDeps) {
+      const pos = parseVehiclePosition(d.vehicle_lat, d.vehicle_lng);
+      if (!pos) continue;
+      const isMain = d.vehicle_code && d.vehicle_code === ctx.vehicleCode;
+      const color = routeColor(d.route, d._provider || d.provider || "");
+      const b = d.vehicle_direction || d.direction || 0;
+      const r = d.route || "?";
+      const mk = this._buildVehicleMarker(b, color, r, d.vehicle_type || "bus", d, isMobile);
+      const mkHtml = `<div class="zm-arrow" style="transform:rotate(${b}deg);opacity:${isMain ? 1 : 0.7}">${mk.svg}</div>`;
+      const icon = window.L.divIcon({
+        className: "", html: mkHtml,
+        iconSize: [mk.size, mk.arrowH], iconAnchor: [mk.size / 2, mk.arrowH],
+      });
+      ctx.markers.push(window.L.marker([pos[0], pos[1]], { icon }).addTo(ctx.map));
+    }
   }
 
   _updateVehiclePosition(ctx) {
@@ -1760,7 +1823,8 @@ class MzkzgTransportCard extends HTMLElement {
       const vehicleChip = (d._provider !== "plk_rail" && d.vehicle_code && d.realtime)
         ? `<span class="platform">${escapeHtml(d.vehicle_code)}</span>`
         : "";
-      const metaRow = (iconsHTML || platformHTML)
+      const platformText = d.platform ? `<span class="platform" title="Stanowisko/peron">${escapeHtml(String(d.platform))}</span>` : "";
+    const metaRow = (iconsHTML || platformText || platformHTML)
         ? `<span class="meta-row">${iconsHTML}${platformHTML}</span>`
         : "";
 
