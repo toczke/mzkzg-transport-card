@@ -125,6 +125,40 @@ class MzkzgTransportCoordinator(DataUpdateCoordinator):
         from .provider_kiedyprzyjedzie import _parse_time
         return _parse_time(value, reference_dt)
 
+    @staticmethod
+    def _deduplicate_prefer_rt(departures: list) -> list:
+        """Deduplicate by (route, theoretical_time, headsign), prefer realtime.
+
+        Using theoretical_time ensures RT entries with delay still match
+        the corresponding schedule entry from GTFS fallback.
+        Entries with empty headsign match any headsign at the same route+time.
+        """
+        seen: dict[tuple, dict] = {}
+        seen_rt: dict[tuple, dict] = {}
+        for d in departures:
+            t = (d.get("theoretical_time") or d.get("estimated_time") or "")[:16]
+            h = (d.get("headsign") or "").strip()
+            key = (d.get("route"), t, h)
+            key_rt = (d.get("route"), t)
+
+            existing = seen.get(key)
+            if existing:
+                if d.get("realtime") and not existing.get("realtime"):
+                    seen[key] = d
+                continue
+
+            if not h and key_rt in seen_rt:
+                existing_no_hs = seen_rt[key_rt]
+                if d.get("realtime") and not existing_no_hs.get("realtime"):
+                    seen_rt[key_rt] = d
+                    seen[key] = d
+                continue
+
+            seen[key] = d
+            seen_rt[key_rt] = d
+
+        return list(seen.values())
+
     async def _async_update_data(self) -> dict:
         """Fetch departures from the appropriate provider module."""
         from homeassistant.util import dt as dt_util
@@ -166,30 +200,33 @@ class MzkzgTransportCoordinator(DataUpdateCoordinator):
         try:
             if self.provider == PROVIDER_ZTM:
                 from . import provider_ztm
-                return await provider_ztm.fetch(self)
-            if self.provider == PROVIDER_MZK:
+                data = await provider_ztm.fetch(self)
+            elif self.provider == PROVIDER_MZK:
                 from . import provider_mzk
-                return await provider_mzk.fetch(self)
-            if self.provider == PROVIDER_LODZ:
+                data = await provider_mzk.fetch(self)
+            elif self.provider == PROVIDER_LODZ:
                 from . import provider_lodz
-                return await provider_lodz.fetch(self)
-            if self.provider == PROVIDER_KRAKOW:
+                data = await provider_lodz.fetch(self)
+            elif self.provider == PROVIDER_KRAKOW:
                 from . import provider_krakow
-                return await provider_krakow.fetch(self)
-            if self.provider in GTFSRT_PROVIDERS:
+                data = await provider_krakow.fetch(self)
+            elif self.provider in GTFSRT_PROVIDERS:
                 from . import provider_gtfsrt
-                return await provider_gtfsrt.fetch(self)
-            if self.provider == PROVIDER_PLK:
+                data = await provider_gtfsrt.fetch(self)
+            elif self.provider == PROVIDER_PLK:
                 from . import provider_plk
-                return await provider_plk.fetch(self)
-            if self.provider in TIME4BUS_PROVIDERS:
+                data = await provider_plk.fetch(self)
+            elif self.provider in TIME4BUS_PROVIDERS:
                 from . import provider_time4bus
-                return await provider_time4bus.fetch(self)
-            if self.provider in KIEDYPRZYJEDZIE_PROVIDERS:
+                data = await provider_time4bus.fetch(self)
+            elif self.provider in KIEDYPRZYJEDZIE_PROVIDERS:
                 from . import provider_kiedyprzyjedzie
-                return await provider_kiedyprzyjedzie.fetch(self)
-            from . import provider_zkm
-            return await provider_zkm.fetch(self)
+                data = await provider_kiedyprzyjedzie.fetch(self)
+            else:
+                from . import provider_zkm
+                data = await provider_zkm.fetch(self)
+            data["departures"] = self._deduplicate_prefer_rt(data.get("departures", []))
+            return data
         except Exception as err:
             _LOGGER.debug("Fetch error for %s (%s): %s", self.stop_id, self.provider, err, exc_info=True)
             raise UpdateFailed(f"Error fetching data: {err}") from err

@@ -8,9 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, PROVIDER_LABELS
-
-DELAY_THRESHOLD_SECONDS = 180  # 3 minutes
+from .const import DOMAIN, DELAY_THRESHOLD_SECONDS, PROVIDER_LABELS
 
 
 async def async_setup_entry(

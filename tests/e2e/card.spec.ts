@@ -1,6 +1,86 @@
 import { test, expect } from '@playwright/test';
+import * as path from 'path';
 
 const HA_URL = process.env.HA_URL || 'http://localhost:8123';
+
+test('registers current and legacy card elements', async ({ page }) => {
+  const scriptPath = path.resolve(
+    'custom_components/mzkzg_transport/www/polish-transport-card.js'
+  );
+
+  await page.goto('about:blank');
+  await page.addScriptTag({ path: scriptPath });
+
+  const registrations = await page.evaluate(() => {
+    const card = customElements.get('mzkzg-transport-card');
+    const legacyCard = customElements.get('polish-transport-card');
+    const editor = customElements.get('mzkzg-transport-card-editor');
+    const legacyEditor = customElements.get('polish-transport-card-editor');
+
+    return {
+      allRegistered: Boolean(card && legacyCard && editor && legacyEditor),
+      cardConstructorsDiffer: card !== legacyCard,
+      editorConstructorsDiffer: editor !== legacyEditor,
+    };
+  });
+
+  expect(registrations.allRegistered).toBe(true);
+  expect(registrations.cardConstructorsDiffer).toBe(true);
+  expect(registrations.editorConstructorsDiffer).toBe(true);
+});
+
+test('opens the vehicle map for positioned departures from any provider', async ({ page }) => {
+  const scriptPath = path.resolve(
+    'custom_components/mzkzg_transport/www/polish-transport-card.js'
+  );
+
+  await page.goto('about:blank');
+  await page.addScriptTag({ path: scriptPath });
+
+  const result = await page.evaluate(() => {
+    const card = document.createElement('mzkzg-transport-card') as any;
+    card.setConfig({
+      type: 'custom:mzkzg-transport-card',
+      entities: ['sensor.gzm_departures'],
+      tap_action: { action: 'none' },
+      hold_action: { action: 'none' },
+      double_tap_action: { action: 'none' },
+    });
+    card._showVehicleMap = (lat: number, lng: number, info: unknown) => {
+      card._openedMap = { lat, lng, info };
+    };
+    document.body.appendChild(card);
+    card.hass = {
+      states: {
+        'sensor.gzm_departures': {
+          state: '1',
+          attributes: {
+            provider: 'gtfsrt_gzm',
+            departures: [{
+              route: '7',
+              headsign: 'Katowice',
+              estimated_time: new Date(Date.now() + 600000).toISOString(),
+              realtime: true,
+              vehicle_code: 'GZM-42',
+              vehicle_lat: 50.2649,
+              vehicle_lng: 19.0238,
+            }],
+          },
+        },
+      },
+    };
+
+    const row = card.shadowRoot.querySelector('.dep-row');
+    row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    return {
+      focusable: row.getAttribute('tabindex') === '0',
+      openedMap: card._openedMap,
+    };
+  });
+
+  expect(result.focusable).toBe(true);
+  expect(result.openedMap).toMatchObject({ lat: 50.2649, lng: 19.0238 });
+});
 
 test.describe('Card rendering', () => {
   test.beforeEach(async ({ page }) => {
@@ -9,7 +89,7 @@ test.describe('Card rendering', () => {
   });
 
   test('cards render with correct provider color', async ({ page }) => {
-    const card = page.locator('mzkzg-transport-card').first();
+    const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
     await expect(card).toBeVisible();
     const header = card.locator('.header');
     const bg = await header.evaluate(el => getComputedStyle(el).backgroundColor);
@@ -18,7 +98,7 @@ test.describe('Card rendering', () => {
   });
 
   test('card shows provider display name in subtitle', async ({ page }) => {
-    const card = page.locator('mzkzg-transport-card').first();
+    const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
     const sub = card.locator('.header-sub');
     const text = await sub.textContent();
     expect(text).not.toContain('ztm_gdansk');
@@ -26,14 +106,14 @@ test.describe('Card rendering', () => {
   });
 
   test('card shows departure rows', async ({ page }) => {
-    const card = page.locator('mzkzg-transport-card').first();
+    const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
     const rows = card.locator('.dep-row');
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
   });
 
   test('departure row has route badge and time', async ({ page }) => {
-    const card = page.locator('mzkzg-transport-card').first();
+    const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
     const row = card.locator('.dep-row').first();
     const badge = row.locator('.route-badge');
     await expect(badge).toBeVisible();
@@ -42,7 +122,7 @@ test.describe('Card rendering', () => {
   });
 
   test('card height is consistent with padding', async ({ page }) => {
-    const cards = page.locator('mzkzg-transport-card');
+    const cards = page.locator('mzkzg-transport-card, polish-transport-card');
     const count = await cards.count();
     if (count >= 2) {
       const h1 = await cards.nth(0).boundingBox();
@@ -101,7 +181,7 @@ test.describe('Visual editor', () => {
     await page.getByRole('button', { name: /edit/i }).click().catch(() => {});
     await page.waitForTimeout(1000);
     // The card should still show departures after edit mode
-    const card = page.locator('mzkzg-transport-card').first();
+    const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
     const rows = card.locator('.dep-row');
     const count = await rows.count();
     expect(count).toBeGreaterThanOrEqual(0);
@@ -119,7 +199,7 @@ test.describe('Provider colors', () => {
     test(`${p.name} has correct color and label`, async ({ page }) => {
       await page.goto(`${HA_URL}/dashboard-testing/${p.path}`);
       await page.waitForTimeout(5000);
-      const card = page.locator('mzkzg-transport-card').first();
+      const card = page.locator('mzkzg-transport-card, polish-transport-card').first();
       const sub = card.locator('.header-sub');
       const text = await sub.textContent();
       expect(text).toContain(p.name);

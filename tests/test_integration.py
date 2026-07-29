@@ -86,7 +86,8 @@ def mock_hass():
 
 @pytest.fixture
 def ztm_response():
-    now = datetime.now()
+    from homeassistant.util import dt as dt_util
+    now = dt_util.utcnow()
     return {
         "departures": [
             {

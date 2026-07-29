@@ -8,6 +8,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  HA_URL: ${{ secrets.HA_URL || 'http://localhost:8123' }}
 
 jobs:
   test:
@@ -21,6 +22,7 @@ jobs:
           - {name: "Tczew (Time4Bus)", marker: "tczew"}
           - {name: "KiedyPrzyjedzie", marker: "kiedyprzyjedzie"}
           - {name: "GTFS-RT", marker: "gtfsrt"}
+          - {name: "Łódź", marker: "lodz"}
           - {name: "Common", marker: "common"}
     name: test-${{ matrix.city.marker }}
     steps:
@@ -58,22 +60,18 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
       - name: Check HA availability
         id: ha_check
         run: curl -sf $HA_URL/api/ -o /dev/null && echo "available=true" >> $GITHUB_OUTPUT || echo "available=false" >> $GITHUB_OUTPUT
-        env:
-          HA_URL: http://192.168.0.212:8123
       - name: Install Playwright
         if: steps.ha_check.outputs.available == 'true'
         run: |
-          npm install
+          npm ci
           npx playwright install --with-deps chromium
       - name: Run E2E tests
         if: steps.ha_check.outputs.available == 'true'
         run: npx playwright test
-        env:
-          HA_URL: http://192.168.0.212:8123
       - name: Skip E2E (HA not available)
         if: steps.ha_check.outputs.available != 'true'
         run: echo "E2E skipped - Home Assistant not reachable"
@@ -87,11 +85,11 @@ jobs:
           python-version: "3.12"
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
       - name: Check Python syntax
         run: python -m py_compile custom_components/mzkzg_transport/*.py
       - name: Check JS syntax
-        run: node --check custom_components/mzkzg_transport/www/mzkzg-transport-card.js
+        run: node --check custom_components/mzkzg_transport/www/polish-transport-card.js
 
   validate:
     runs-on: self-hosted

@@ -9,7 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_PROVIDER, DOMAIN, PROVIDER_LABELS
+from .const import CONF_PROVIDER, CONF_STOPS, DOMAIN, PROVIDER_LABELS
 from .coordinator import MzkzgTransportCoordinator
 
 
@@ -37,8 +37,13 @@ async def async_setup_entry(
     )
 
     entities = []
-    for coordinator in coordinators:
-        entities.append(MzkzgTransportSensor(coordinator, entry))
+    is_multi = bool(entry.data.get(CONF_STOPS)) and len(coordinators) > 1
+    if is_multi:
+        # Single aggregated sensor for multi-stop entries
+        entities.append(MzkzgAggregatedSensor(coordinators, entry))
+    else:
+        for coordinator in coordinators:
+            entities.append(MzkzgTransportSensor(coordinator, entry))
 
     # Add API usage sensor for PLK (once per entry)
     if entry.data.get(CONF_PROVIDER) == "plk_rail":
@@ -94,6 +99,77 @@ class MzkzgTransportSensor(CoordinatorEntity, SensorEntity):
             "last_update": data.get("last_update"),
             "departures": data.get("departures", []),
         }
+
+
+class MzkzgAggregatedSensor(SensorEntity):
+    """Sensor that merges departures from multiple stops (węzeł przesiadkowy)."""
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinators: list, entry: ConfigEntry) -> None:
+        self._coordinators = coordinators
+        self._entry = entry
+        provider = coordinators[0].provider if coordinators else entry.data.get(CONF_PROVIDER, "")
+        provider_label = PROVIDER_LABELS.get(provider, provider)
+        name = entry.data.get("name", "")
+        self._attr_unique_id = f"{DOMAIN}_{provider}_multi_{entry.entry_id}"
+        self._attr_name = "Odjazdy"
+        self._attr_icon = "mdi:bus-multiple"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, f"{provider}_multi_{entry.entry_id}")},
+            "name": name or "Węzeł",
+            "manufacturer": provider_label,
+            "model": provider,
+            "via_device": (DOMAIN, provider),
+        }
+
+    @property
+    def native_value(self) -> str | None:
+        deps = self._merged_departures()
+        if not deps:
+            return None
+        return deps[0].get("estimated_time")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        deps = self._merged_departures()
+        data = self._coordinators[0].data if self._coordinators else {}
+        return {
+            "stop_id": "|".join(c.stop_id for c in self._coordinators),
+            "stop_name": data.get("stop_name", ""),
+            "provider": data.get("provider", ""),
+            "last_update": data.get("last_update", ""),
+            "departures": deps,
+        }
+
+    def _merged_departures(self) -> list:
+        all_deps = []
+        seen = set()
+        for c in self._coordinators:
+            if c.data:
+                for d in c.data.get("departures", []):
+                    key = (d.get("route"), d.get("headsign", ""), (d.get("estimated_time") or "")[:16])
+                    if key not in seen:
+                        seen.add(key)
+                        all_deps.append(d)
+        all_deps.sort(key=lambda d: d.get("estimated_time") or "")
+        return all_deps[:20]
+
+    @property
+    def available(self) -> bool:
+        return any(c.last_update_success for c in self._coordinators)
+
+    async def async_update(self) -> None:
+        for c in self._coordinators:
+            await c.async_refresh()
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            self._entry.add_update_listener(self._async_update_from_coordinators)
+        )
+
+    async def _async_update_from_coordinators(self, hass, entry) -> None:
+        self.async_write_ha_state()
 
 
 class MzkzgPlkApiUsageSensor(SensorEntity, RestoreEntity):

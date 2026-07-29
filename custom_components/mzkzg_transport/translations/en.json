@@ -40,7 +40,8 @@
         "data": {
           "sleep_enabled": "Enable sleep mode",
           "sleep_start": "Sleep start (HH:MM)",
-          "sleep_end": "Sleep end (HH:MM)"
+          "sleep_end": "Sleep end (HH:MM)",
+          "fallback_min": "Minimum scheduled departures for Łódź fallback"
         }
       }
     }

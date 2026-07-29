@@ -1,5 +1,6 @@
-"""Kraków provider via zbiorkom.live API."""
+"""Kraków provider via zbiorkom.live API + GTFS-RT vehicle positions."""
 
+import aiohttp
 from datetime import datetime, timedelta
 import logging
 
@@ -10,9 +11,11 @@ from .http_utils import fetch_with_retry
 _LOGGER = logging.getLogger(__name__)
 
 ZBIORKOM_API = "https://api.zbiorkom.live/4.8/krakow/stops/getDepartures"
+KRAKOW_GPS_BUS = "https://gtfs.ztp.krakow.pl/VehiclePositions_A.pb"
+KRAKOW_GPS_TRAM = "https://gtfs.ztp.krakow.pl/VehiclePositions_T.pb"
 
 
-async def fetch(coord) -> dict:
+async def fetch(coord: "MzkzgTransportCoordinator") -> dict:
     """Fetch departures from zbiorkom.live Kraków API."""
     session = await coord._get_session()
     now = dt_util.now()
@@ -92,6 +95,9 @@ async def fetch(coord) -> dict:
             "provider": coord.provider,
         })
 
+    # Enrich with GPS positions from GTFS-RT (vehicle_code or route_id fallback)
+    await _enrich_krakow_positions(session, departures)
+
     departures.sort(key=lambda x: x.get("estimated_time") or "")
     return {
         "stop_id": coord.stop_id,
@@ -110,3 +116,78 @@ def _empty(coord, now):
         "departures": [],
         "last_update": now.isoformat(),
     }
+
+
+async def _enrich_krakow_positions(session, departures):
+    """Fetch GTFS-RT vehicle positions for Kraków and add vehicle_lat/lng with route_id fallback."""
+    bus = await _fetch_krakow_gps(session, KRAKOW_GPS_BUS)
+    tram = await _fetch_krakow_gps(session, KRAKOW_GPS_TRAM)
+    positions = {**bus, **tram}
+    if not positions:
+        return
+
+    # Build route_id → position list for fallback matching
+    route_positions = {}
+    for vid, entry in positions.items():
+        rid = entry.get("route_id")
+        if rid:
+            route_positions.setdefault(rid, []).append(entry)
+
+    for d in departures:
+        vc = d.get("vehicle_code", "")
+        p = None
+        if vc and vc in positions:
+            p = positions[vc]
+        elif not vc:
+            rid = d.get("route", "")
+            candidates = route_positions.get(rid, [])
+            if candidates:
+                p = candidates[0]
+                candidates.append(candidates.pop(0))
+        if p is None:
+            continue
+        d["vehicle_lat"] = p["lat"]
+        d["vehicle_lng"] = p["lng"]
+        if p.get("bearing") is not None:
+            d["vehicle_direction"] = p["bearing"]
+        if p.get("speed") is not None:
+            d["vehicle_speed"] = round(p["speed"] * 3.6)
+
+
+async def _fetch_krakow_gps(session, url: str) -> dict:
+    """Fetch and parse a single GTFS-RT VehiclePositions endpoint."""
+    try:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=15), ssl=False) as resp:
+            if resp.status != 200:
+                return {}
+            raw = await resp.read()
+        from google.transit import gtfs_realtime_pb2
+        feed = gtfs_realtime_pb2.FeedMessage()
+        feed.ParseFromString(raw)
+        positions = {}
+        for entity in feed.entity:
+            if not entity.HasField("vehicle"):
+                continue
+            v = entity.vehicle
+            vid = v.vehicle.id or v.vehicle.label or ""
+            vid = vid.split("/")[-1] if "/" in vid else vid
+            if not vid or not v.HasField("position"):
+                continue
+            entry = {
+                "lat": v.position.latitude,
+                "lng": v.position.longitude,
+            }
+            try:
+                entry["bearing"] = v.position.bearing if v.position.HasField("bearing") else None
+            except (ValueError, AttributeError):
+                pass
+            try:
+                entry["speed"] = v.position.speed if v.position.HasField("speed") else None
+            except (ValueError, AttributeError):
+                pass
+            if v.HasField("trip") and v.trip.route_id:
+                entry["route_id"] = v.trip.route_id
+            positions[vid] = entry
+        return positions
+    except Exception:
+        return {}

@@ -78,7 +78,7 @@
     }
 
     function createCard(config, hass, container) {
-      const el = document.createElement("mzkzg-transport-card");
+      const el = document.createElement("polish-transport-card");
       el.setConfig(config);
       el.hass = hass;
       document.getElementById(container).appendChild(el);
@@ -87,7 +87,7 @@
     async function init() {
       await new Promise((res, rej) => {
         const s = document.createElement("script");
-        s.src = `../custom_components/mzkzg_transport/www/mzkzg-transport-card.js?v=${Date.now()}`;
+        s.src = `../custom_components/mzkzg_transport/www/polish-transport-card.js?v=${Date.now()}`;
         s.onload = res; s.onerror = rej;
         document.head.appendChild(s);
       });
@@ -97,7 +97,7 @@
       const hassPlk = makeHass([["sensor.plk_7534","plk_rail","Gdańsk Wrzeszcz",plkDeps]]);
       const hassMulti = makeHass([["sensor.ztm_1205","ztm_gdansk","Brama Wyżynna 01",ztmDeps],["sensor.zkm_38220","zkm_gdynia","Gdynia Chylonia PKP",zkmDeps]]);
 
-      const base = { type:"custom:mzkzg-transport-card", max_departures:5, show_footer:true, show_delays:true, show_bike:true, show_wheelchair:true, show_ac:true, show_ticket_machine:true, tap_action:{action:"none"}, hold_action:{action:"none"}, double_tap_action:{action:"none"} };
+      const base = { type:"custom:polish-transport-card", max_departures:5, show_footer:true, show_delays:true, show_bike:true, show_wheelchair:true, show_ac:true, show_ticket_machine:true, tap_action:{action:"none"}, hold_action:{action:"none"}, double_tap_action:{action:"none"} };
 
       createCard({...base, entities:["sensor.ztm_1205"], display_preset:"standard"}, hassZtm, "card-standard-light");
       createCard({...base, entities:["sensor.ztm_1205"], display_preset:"standard"}, hassZtm, "card-standard-dark");

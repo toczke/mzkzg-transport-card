@@ -13,3 +13,5 @@ dev/server.err.log
 *.zip
 .gtfs_cache/
 .coverage
+test-results/
+playwright-report/
