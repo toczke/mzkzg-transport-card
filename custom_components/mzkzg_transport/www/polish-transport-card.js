@@ -727,6 +727,7 @@ class MzkzgTransportCardEditor extends HTMLElement {
 
     this._config = config;
     this._firing = true;
+    this._updatePreview();
     this.dispatchEvent(new CustomEvent("config-changed", {
       detail: { config },
       bubbles: true,
@@ -1118,6 +1119,32 @@ class MzkzgTransportCard extends HTMLElement {
     return this._getEntityEntries().map(e => e.entity);
   }
 
+  _updatePreview() {
+    const el = this.shadowRoot.getElementById("card-preview");
+    if (!el) return;
+    const section = this.shadowRoot.getElementById("preview-section");
+    if (!section) return;
+    const entities = this._selectedEntityIds();
+    if (!entities.length) { section.style.display = "none"; return; }
+    section.style.display = "";
+    const maxDeps = Math.min(parseInt(this.shadowRoot.getElementById("max_departures")?.value) || 10, 5);
+    let html = "";
+    for (const eid of entities.slice(0, 3)) {
+      const state = this._hass?.states[eid];
+      if (!state) { html += `<div style="color:var(--secondary-text-color);padding:4px 0">${escapeHtml(eid.replace("sensor.",""))}: brak danych</div>`; continue; }
+      const deps = (state.attributes?.departures || []).slice(0, maxDeps);
+      html += `<div style="font-weight:600;padding:4px 0;border-bottom:1px solid var(--divider-color,#f0f0f0)">${escapeHtml(state.attributes?.stop_name || eid.replace("sensor.","").replace(/_odjazdy$/,""))}</div>`;
+      if (!deps.length) html += `<div style="color:var(--secondary-text-color);font-size:11px;padding:2px 0">Brak odjazdów</div>`;
+      for (const d of deps) {
+        const mins = minutesUntil(d.estimated_time);
+        const time = formatTime(d.estimated_time);
+        const delay = d.delay_seconds ? ` <span style="color:${d.delay_seconds>0?'#e53935':'#43a047'}">${d.delay_seconds>0?'+':''}${Math.round(d.delay_seconds/60)}min</span>` : "";
+        html += `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-size:12px"><span style="font-weight:700;min-width:30px">${escapeHtml(d.route)}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">→ ${escapeHtml(d.headsign||"")}</span><span>${time}${delay}</span></div>`;
+      }
+    }
+    el.innerHTML = html;
+  }
+
   getCardSize() { return (this._config.max_departures || 10) + 1; }
 
   getGridOptions() {
@@ -1308,7 +1335,7 @@ class MzkzgTransportCard extends HTMLElement {
 
     const overlay = document.createElement("div");
     overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;";
-    overlay.innerHTML = `<div style="position:relative;width:${w}px;height:${h}px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.3);"><button style="position:absolute;top:8px;right:8px;z-index:1001;background:rgba(0,0,0,0.6);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:#fff;">✕</button><div id="vmap" style="width:${w}px;height:${h}px;"></div></div>`;
+    overlay.innerHTML = `<div style="position:relative;width:${w}px;height:${h}px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.3);"><button style="position:absolute;top:8px;right:8px;z-index:1001;background:rgba(0,0,0,0.6);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:#fff;">✕</button><div id="vmap" style="width:${w}px;height:${h}px;"></div><div id="vmap-status" style="position:absolute;bottom:6px;left:10px;z-index:1001;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:2px 6px;border-radius:4px">🔄 odświeżanie co 30s</div></div>`;
     document.body.appendChild(overlay);
     const closeMap = () => { if (this._mapCtx) this._mapCtx.destroy(); };
     overlay.querySelector("button").onclick = closeMap;
