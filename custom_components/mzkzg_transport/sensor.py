@@ -55,6 +55,7 @@ class MzkzgTransportSensor(CoordinatorEntity, SensorEntity):
     """Sensor representing departures from a single stop."""
 
     _attr_has_entity_name = True
+    _unrecorded_attributes = frozenset({"departures", "last_update"})
 
     def __init__(self, coordinator: MzkzgTransportCoordinator, entry: ConfigEntry) -> None:
         """Initialize the sensor."""
@@ -104,6 +105,7 @@ class MzkzgAggregatedSensor(SensorEntity):
     """Sensor that merges departures from multiple stops (węzeł przesiadkowy)."""
 
     _attr_has_entity_name = True
+    _unrecorded_attributes = frozenset({"departures", "last_update"})
 
     def __init__(self, coordinators: list, entry: ConfigEntry) -> None:
         self._coordinators = coordinators
