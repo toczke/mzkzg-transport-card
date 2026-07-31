@@ -1260,39 +1260,50 @@ class MzkzgTransportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def _load_gtfs_stops(self, gtfs_url: str, id_column: str = "stop_id") -> list[dict]:
         """Download a GTFS zip and parse stops.txt."""
         import csv
+        import tempfile
         import zipfile
-        from io import BytesIO, StringIO
+        from io import TextIOWrapper
+
+        max_download_bytes = 256 * 1024 * 1024
+        max_stops_bytes = 64 * 1024 * 1024
 
         try:
             _LOGGER.debug("GTFS stops: downloading %s", gtfs_url)
             session = async_get_clientsession(self.hass)
-            async with session.get(
-                gtfs_url, timeout=aiohttp.ClientTimeout(total=120)
-            ) as resp:
-                resp.raise_for_status()
-                data = await resp.read()
-            _LOGGER.debug("GTFS stops: downloaded %d bytes from %s", len(data), gtfs_url)
-        except Exception as e:
-            _LOGGER.warning("Failed to download GTFS from %s: %s", gtfs_url, e)
-            return []
+            with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as archive:
+                downloaded = 0
+                async with session.get(
+                    gtfs_url, timeout=aiohttp.ClientTimeout(total=120)
+                ) as resp:
+                    resp.raise_for_status()
+                    if resp.content_length and resp.content_length > max_download_bytes:
+                        raise ValueError("GTFS archive exceeds 256 MiB limit")
+                    async for chunk in resp.content.iter_chunked(1024 * 1024):
+                        downloaded += len(chunk)
+                        if downloaded > max_download_bytes:
+                            raise ValueError("GTFS archive exceeds 256 MiB limit")
+                        archive.write(chunk)
 
-        try:
-            stops = []
-            with zipfile.ZipFile(BytesIO(data)) as zf:
-                if "stops.txt" not in zf.namelist():
-                    return []
-                text = zf.read("stops.txt").decode("utf-8-sig")
-                reader = csv.reader(StringIO(text))
-                header = next(reader)
-                id_idx = header.index(id_column)
-                name_idx = header.index("stop_name")
-                stops_by_id = {}
-                for parts in reader:
-                    if len(parts) > max(id_idx, name_idx):
-                        sid = parts[id_idx]
-                        name = parts[name_idx]
-                        if sid and name:
-                            stops_by_id.setdefault(sid, {"id": sid, "name": name})
+                _LOGGER.debug("GTFS stops: downloaded %d bytes from %s", downloaded, gtfs_url)
+                archive.seek(0)
+                with zipfile.ZipFile(archive) as zf:
+                    if "stops.txt" not in zf.namelist():
+                        return []
+                    if zf.getinfo("stops.txt").file_size > max_stops_bytes:
+                        raise ValueError("GTFS stops.txt exceeds 64 MiB limit")
+                    with zf.open("stops.txt") as raw:
+                        with TextIOWrapper(raw, encoding="utf-8-sig", newline="") as text:
+                            reader = csv.reader(text)
+                            header = next(reader)
+                            id_idx = header.index(id_column)
+                            name_idx = header.index("stop_name")
+                            stops_by_id = {}
+                            for parts in reader:
+                                if len(parts) > max(id_idx, name_idx):
+                                    sid = parts[id_idx]
+                                    name = parts[name_idx]
+                                    if sid and name:
+                                        stops_by_id.setdefault(sid, {"id": sid, "name": name})
 
                 stops = list(stops_by_id.values())
 
@@ -1300,7 +1311,7 @@ class MzkzgTransportConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             _LOGGER.debug("GTFS stops: parsed %d stops from %s", len(stops), gtfs_url)
             return stops
         except Exception as e:
-            _LOGGER.warning("Failed to parse GTFS zip from %s: %s", gtfs_url, e)
+            _LOGGER.warning("Failed to load GTFS stops from %s: %s", gtfs_url, e)
             return []
 
 

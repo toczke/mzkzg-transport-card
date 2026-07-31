@@ -5,7 +5,7 @@ import csv
 import logging
 import zipfile
 from datetime import timedelta
-from io import BytesIO, StringIO
+from io import BytesIO, StringIO, TextIOWrapper
 
 import aiohttp
 
@@ -17,13 +17,26 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _read_csv(zf, filename):
-    """Read a GTFS CSV file from zip, return (header, rows) using proper CSV parsing."""
+    """Open a GTFS CSV file and stream its rows from the zip."""
     if filename not in zf.namelist():
-        return None, []
-    text = zf.read(filename).decode("utf-8-sig")
-    reader = csv.reader(StringIO(text))
-    header = next(reader)
-    return header, list(reader)
+        return None, iter(())
+
+    raw = zf.open(filename)
+    text = TextIOWrapper(raw, encoding="utf-8-sig", newline="")
+    reader = csv.reader(text)
+    try:
+        header = next(reader)
+    except (StopIteration, UnicodeDecodeError):
+        text.close()
+        return None, iter(())
+
+    def rows():
+        try:
+            yield from reader
+        finally:
+            text.close()
+
+    return header, rows()
 
 # GTFS-RT city configs: static GTFS zip + realtime TripUpdates URL
 GTFSRT_CITIES = {
@@ -429,7 +442,17 @@ async def fetch(coord: "MzkzgTransportCoordinator") -> dict:
     # If fewer than 5 departures, load tomorrow's schedule
     if len(unique) < 5 and gtfs.get("_raw"):
         tomorrow = now + timedelta(days=1)
-        tomorrow_deps = _get_tomorrow_departures(gtfs, coord.stop_id, tomorrow, now)
+        tomorrow_prefix = f"{tomorrow:%Y%m%d}_"
+        tomorrow_key = f"{tomorrow_prefix}{coord.stop_id}"
+        tomorrow_cache = gtfs.setdefault("_tomorrow_departures", {})
+        if tomorrow_key not in tomorrow_cache:
+            for old_key in list(tomorrow_cache):
+                if not old_key.startswith(tomorrow_prefix):
+                    tomorrow_cache.pop(old_key)
+            tomorrow_cache[tomorrow_key] = _get_tomorrow_departures(
+                gtfs, coord.stop_id, tomorrow, now
+            )
+        tomorrow_deps = tomorrow_cache[tomorrow_key]
         for d in tomorrow_deps:
             est = (d.get("estimated_time") or "")[:16]
             key = (d.get("route"), d.get("headsign"), est)
@@ -697,6 +720,15 @@ async def _get_gzm_gtfs_url(session, package_id: str, target_date=None) -> str |
 
 
 async def _get_gtfs_data(coord, session, city_cfg, now):
+    """Load GTFS data once when several stops refresh concurrently."""
+    domain_data = coord.hass.data[DOMAIN]
+    locks = domain_data.setdefault("_gtfsrt_locks", {})
+    lock = locks.setdefault(coord.provider, asyncio.Lock())
+    async with lock:
+        return await _get_gtfs_data_locked(coord, session, city_cfg, now)
+
+
+async def _get_gtfs_data_locked(coord, session, city_cfg, now):
     """Load and cache parsed GTFS data (daily)."""
     cache = coord.hass.data[DOMAIN].setdefault("_gtfsrt_cache", {})
     today = now.strftime("%Y%m%d")
@@ -879,11 +911,9 @@ def _parse_stop_times_for(gtfs, stop_id):
     trips = gtfs["trips"]
     stops = gtfs["stops"]
     with zipfile.ZipFile(BytesIO(raw)) as zf:
-        if "stop_times.txt" not in zf.namelist():
+        header, reader = _read_csv(zf, "stop_times.txt")
+        if not header:
             return
-        text = zf.read("stop_times.txt").decode("utf-8-sig")
-        reader = csv.reader(StringIO(text))
-        header = next(reader)
         tid_idx = header.index("trip_id")
         sid_idx = header.index("stop_id")
         dep_idx = header.index("departure_time")
@@ -943,11 +973,9 @@ def _parse_stop_times_from_raw(gtfs, stop_id, raw_data):
     trips = gtfs["trips"]
     stops = gtfs["stops"]
     with zipfile.ZipFile(BytesIO(raw_data)) as zf:
-        if "stop_times.txt" not in zf.namelist():
+        header, reader = _read_csv(zf, "stop_times.txt")
+        if not header:
             return
-        text = zf.read("stop_times.txt").decode("utf-8-sig")
-        reader = csv.reader(StringIO(text))
-        header = next(reader)
         tid_idx = header.index("trip_id")
         sid_idx = header.index("stop_id")
         dep_idx = header.index("departure_time")
