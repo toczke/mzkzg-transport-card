@@ -5,7 +5,6 @@
  */
 
 const MZKZG_VERSION = "1.5.0";
-let leafletLoadPromise = null;
 
 const LOCALE = {
   pl: {
@@ -392,7 +391,6 @@ ha-card.e-ink .dep-row { transition: none; }
 .icons { display: inline-flex; gap: 3px; align-items: center; flex-shrink: 0; white-space: nowrap; flex-basis: 100%; width: 100%; margin-top: 1px; }
 .icons svg { color: var(--mzkzg-muted); opacity: 0.8; }
 .platform { display: inline-flex; align-items: center; justify-content: center; background: var(--chip-background, #e5e7eb); color: var(--chip-color, #374151); border-radius: 6px; padding: 1px 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; flex-shrink: 0; }
-.map-pin { display: inline-flex; align-items: center; margin: 0 2px 0 -2px; font-size: 13px; opacity: 0.7; flex-shrink: 0; cursor: pointer; }
 .meta-row { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; margin-top: 1px; }
 .stop-name { display: block; font-size: 10px; color: var(--mzkzg-muted); font-weight: 400; margin-top: 1px; width: 100%; }
 ha-card.compact .stop-name { display: none; }
@@ -530,32 +528,6 @@ class MzkzgTransportCardEditor extends HTMLElement {
     this._hass = hass;
     if (!this._rendered) { this._render(); return; }
     this._refreshEntityOptions();
-  }
-
-  _updatePreview() {
-    const el = this.shadowRoot.getElementById("card-preview");
-    if (!el) return;
-    const section = this.shadowRoot.getElementById("preview-section");
-    if (!section) return;
-    const entities = this._selectedEntityIds();
-    if (!entities.length) { section.style.display = "none"; return; }
-    section.style.display = "";
-    const maxDeps = Math.min(parseInt(this.shadowRoot.getElementById("max_departures")?.value) || 10, 5);
-    let html = "";
-    for (const eid of entities.slice(0, 3)) {
-      const state = this._hass?.states[eid];
-      if (!state) { html += `<div style="color:var(--secondary-text-color);padding:4px 0">${escapeHtml(eid.replace("sensor.",""))}: brak danych</div>`; continue; }
-      const deps = (state.attributes?.departures || []).slice(0, maxDeps);
-      html += `<div style="font-weight:600;padding:4px 0;border-bottom:1px solid var(--divider-color,#f0f0f0)">${escapeHtml(state.attributes?.stop_name || eid.replace("sensor.","").replace(/_odjazdy$/,""))}</div>`;
-      if (!deps.length) html += `<div style="color:var(--secondary-text-color);font-size:11px;padding:2px 0">Brak odjazdów</div>`;
-      for (const d of deps) {
-        const mins = minutesUntil(d.estimated_time);
-        const time = formatTime(d.estimated_time);
-        const delay = d.delay_seconds ? ` <span style="color:${d.delay_seconds>0?'#e53935':'#43a047'}">${d.delay_seconds>0?'+':''}${Math.round(d.delay_seconds/60)}min</span>` : "";
-        html += `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-size:12px"><span style="font-weight:700;min-width:30px">${escapeHtml(d.route)}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">→ ${escapeHtml(d.headsign||"")}</span><span>${time}${delay}</span></div>`;
-      }
-    }
-    el.innerHTML = html;
   }
 
   setConfig(config) {
@@ -1101,7 +1073,7 @@ class MzkzgTransportCard extends HTMLElement {
     this._config = {
       ...config,
       entities: Array.isArray(config.entities) ? config.entities : [],
-      max_departures: Math.max(1, Math.min(50, parseInt(config.max_departures) || 10)),
+      max_departures: Math.max(1, Math.min(20, parseInt(config.max_departures) || 10)),
       refresh_interval: Math.max(5, Math.min(600, parseInt(config.refresh_interval) || 60)),
       display_preset: config.display_preset || "standard",
       view_mode: config.view_mode || "mixed",
@@ -1125,20 +1097,18 @@ class MzkzgTransportCard extends HTMLElement {
       double_tap_action: normalizeActionConfig(config.double_tap_action, "none"),
     };
     if (this._rendered) this._fullRender();
-    if (this.isConnected) this._startTick();
+    this._preloadLeaflet();
   }
 
   set hass(hass) {
     this._hass = hass;
-    if (!this._rendered) this._fullRender();
+    if (!this._rendered) { this._fullRender(); this._startTick(); }
     else {
       // Only update if our entities' states changed
       const key = this._getEntityIds().map(e => hass.states[e]?.last_updated).join(",");
       if (key !== this._lastStateKey) { this._lastStateKey = key; this._updateContent(); }
     }
   }
-
-
 
   _getEntityEntries() {
     const raw = Array.isArray(this._config.entities) ? this._config.entities : [];
@@ -1149,6 +1119,31 @@ class MzkzgTransportCard extends HTMLElement {
     return this._getEntityEntries().map(e => e.entity);
   }
 
+  _updatePreview() {
+    const el = this.shadowRoot.getElementById("card-preview");
+    if (!el) return;
+    const section = this.shadowRoot.getElementById("preview-section");
+    if (!section) return;
+    const entities = this._selectedEntityIds();
+    if (!entities.length) { section.style.display = "none"; return; }
+    section.style.display = "";
+    const maxDeps = Math.min(parseInt(this.shadowRoot.getElementById("max_departures")?.value) || 10, 5);
+    let html = "";
+    for (const eid of entities.slice(0, 3)) {
+      const state = this._hass?.states[eid];
+      if (!state) { html += `<div style="color:var(--secondary-text-color);padding:4px 0">${escapeHtml(eid.replace("sensor.",""))}: brak danych</div>`; continue; }
+      const deps = (state.attributes?.departures || []).slice(0, maxDeps);
+      html += `<div style="font-weight:600;padding:4px 0;border-bottom:1px solid var(--divider-color,#f0f0f0)">${escapeHtml(state.attributes?.stop_name || eid.replace("sensor.","").replace(/_odjazdy$/,""))}</div>`;
+      if (!deps.length) html += `<div style="color:var(--secondary-text-color);font-size:11px;padding:2px 0">Brak odjazdów</div>`;
+      for (const d of deps) {
+        const mins = minutesUntil(d.estimated_time);
+        const time = formatTime(d.estimated_time);
+        const delay = d.delay_seconds ? ` <span style="color:${d.delay_seconds>0?'#e53935':'#43a047'}">${d.delay_seconds>0?'+':''}${Math.round(d.delay_seconds/60)}min</span>` : "";
+        html += `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-size:12px"><span style="font-weight:700;min-width:30px">${escapeHtml(d.route)}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">→ ${escapeHtml(d.headsign||"")}</span><span>${time}${delay}</span></div>`;
+      }
+    }
+    el.innerHTML = html;
+  }
 
   getCardSize() { return (this._config.max_departures || 10) + 1; }
 
@@ -1164,7 +1159,6 @@ class MzkzgTransportCard extends HTMLElement {
   disconnectedCallback() {
     if (this._tickTimer) { clearInterval(this._tickTimer); this._tickTimer = null; }
     if (this._visHandler) { document.removeEventListener("visibilitychange", this._visHandler); this._visHandler = null; }
-    if (this._mapCtx) this._mapCtx.destroy();
   }
 
   _bindVisibility() {
@@ -1295,39 +1289,21 @@ class MzkzgTransportCard extends HTMLElement {
   }
 
   _preloadLeaflet() {
-    if (window.L) return Promise.resolve(window.L);
-    if (leafletLoadPromise) return leafletLoadPromise;
-
-    leafletLoadPromise = new Promise((resolve, reject) => {
-      if (!document.getElementById("polish-transport-leaflet-css")) {
-        const link = document.createElement("link");
-        link.id = "polish-transport-leaflet-css";
-        link.rel = "stylesheet";
-        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-        document.head.appendChild(link);
-      }
-
-      let script = document.getElementById("polish-transport-leaflet-js");
-      if (!script) {
-        script = document.createElement("script");
-        script.id = "polish-transport-leaflet-js";
-        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-        document.head.appendChild(script);
-      }
-      const onLoad = () => {
-        script.removeEventListener("error", onError);
-        resolve(window.L);
-      };
-      const onError = () => {
-        script.removeEventListener("load", onLoad);
-        script.remove();
-        leafletLoadPromise = null;
-        reject(new Error("Failed to load Leaflet"));
-      };
-      script.addEventListener("load", onLoad, { once: true });
-      script.addEventListener("error", onError, { once: true });
-    });
-    return leafletLoadPromise;
+    if (!this._leafletLoading) {
+      this._leafletLoading = new Promise((resolve) => {
+        const l = document.createElement("link");
+        l.rel = "stylesheet";
+        l.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        l.onload = () => {
+          const s = document.createElement("script");
+          s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+          s.onload = resolve;
+          document.head.appendChild(s);
+        };
+        document.head.appendChild(l);
+      });
+    }
+    return this._leafletLoading;
   }
 
   _buildVehicleMarker(bearing, color, route, vehicleType, info, isMobile) {
@@ -1360,28 +1336,8 @@ class MzkzgTransportCard extends HTMLElement {
     const overlay = document.createElement("div");
     overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;";
     overlay.innerHTML = `<div style="position:relative;width:${w}px;height:${h}px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.3);"><button style="position:absolute;top:8px;right:8px;z-index:1001;background:rgba(0,0,0,0.6);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:#fff;">✕</button><div id="vmap" style="width:${w}px;height:${h}px;"></div><div id="vmap-status" style="position:absolute;bottom:6px;left:10px;z-index:1001;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:2px 6px;border-radius:4px">🔄 odświeżanie co 30s</div></div>`;
-    const ctx = {
-      overlay,
-      map: null,
-      markers: [],
-      interval: null,
-      ro: null,
-      destroyed: false,
-      entityId: info.entityId,
-      vehicleCode: info.code,
-      destroy: () => {
-        if (ctx.destroyed) return;
-        ctx.destroyed = true;
-        if (ctx.interval) clearInterval(ctx.interval);
-        if (ctx.ro) ctx.ro.disconnect();
-        if (ctx.map) ctx.map.remove();
-        overlay.remove();
-        if (this._mapCtx === ctx) this._mapCtx = null;
-      },
-    };
-    this._mapCtx = ctx;
     document.body.appendChild(overlay);
-    const closeMap = () => ctx.destroy();
+    const closeMap = () => { if (this._mapCtx) this._mapCtx.destroy(); };
     overlay.querySelector("button").onclick = closeMap;
     overlay.onclick = (e) => { if (e.target === overlay) closeMap(); };
 
@@ -1419,7 +1375,7 @@ class MzkzgTransportCard extends HTMLElement {
     };
 
     if (window.L) { createMap(); }
-    else { this._preloadLeaflet().then(createMap).catch(() => ctx.destroy()); }
+    else { (this._leafletLoading || this._preloadLeaflet()).then(createMap); }
   }
 
   _renderAllVehicleMarkers(ctx, info, isMobile) {
@@ -1782,7 +1738,7 @@ class MzkzgTransportCard extends HTMLElement {
       if (hash !== this._lastDepsHash) {
         this._lastDepsHash = hash;
         el.innerHTML = html;
-        this._bindDepartureActions();
+        this._bindTapActions();
       }
     }
     // Re-render tabs
@@ -1912,7 +1868,6 @@ class MzkzgTransportCard extends HTMLElement {
       const rowLabel = `${d.route} → ${d.headsign}, ${formatTime(d.estimated_time || d.theoretical_time)}${mins !== null && mins >= 0 ? ` (${mins} ${t("min")})` : ""}`;
       const hasPos = parseVehiclePosition(d.vehicle_lat, d.vehicle_lng) !== null;
       const isInteractive = hasRowActions || hasPos;
-      const mapIcon = hasPos ? `<span class="map-pin" title="Live map"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>` : "";
       const dir = d.vehicle_direction || d.direction || "";
       const isLowFloor = d.floor_height && d.floor_height !== "Pojazd wysokopodłogowy";
       const isElectric = d.drive_type === "elektryczny";
@@ -1922,7 +1877,7 @@ class MzkzgTransportCard extends HTMLElement {
       const rowAttrs = `data-entity-id="${escapeHtml(d._entityId || "")}"`;
       return `<div class="dep-row${isInteractive ? " interactive" : ""}${imminent ? " imminent" : ""}${d._dimmed ? " dimmed" : ""}${cancelled ? " cancelled" : ""}" ${isInteractive ? `tabindex="0" role="button" aria-label="${escapeHtml(rowLabel)}"` : ""}${rowAttrs}${extras}>
         <span class="badge" style="background:${routeColor(d.route, d._provider || d.provider)}">${escapeHtml(d.route)}</span>
-        ${mapIcon}<span class="headsign"><span class="head-main"><span class="headsign-text">${escapeHtml(d.headsign)}</span>${vehicleChip}</span>${metaRow}${trainInfo || (showStop ? `<span class="stop-name">${escapeHtml(cleanStopName)}</span>` : "")}</span>
+        <span class="headsign"><span class="head-main"><span class="headsign-text">${escapeHtml(d.headsign)}</span>${vehicleChip}</span>${metaRow}${trainInfo || (showStop ? `<span class="stop-name">${escapeHtml(cleanStopName)}</span>` : "")}</span>
         <div class="time-col">${timeHTML}</div>
       </div>`;
       } catch (_) { return ""; }
