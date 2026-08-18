@@ -5,6 +5,7 @@
  */
 
 const MZKZG_VERSION = "1.5.0";
+let leafletLoadPromise = null;
 
 const LOCALE = {
   pl: {
@@ -1074,7 +1075,7 @@ class MzkzgTransportCard extends HTMLElement {
     this._config = {
       ...config,
       entities: Array.isArray(config.entities) ? config.entities : [],
-      max_departures: Math.max(1, Math.min(20, parseInt(config.max_departures) || 10)),
+      max_departures: Math.max(1, Math.min(50, parseInt(config.max_departures) || 10)),
       refresh_interval: Math.max(5, Math.min(600, parseInt(config.refresh_interval) || 60)),
       display_preset: config.display_preset || "standard",
       view_mode: config.view_mode || "mixed",
@@ -1098,12 +1099,12 @@ class MzkzgTransportCard extends HTMLElement {
       double_tap_action: normalizeActionConfig(config.double_tap_action, "none"),
     };
     if (this._rendered) this._fullRender();
-    this._preloadLeaflet();
+    if (this.isConnected) this._startTick();
   }
 
   set hass(hass) {
     this._hass = hass;
-    if (!this._rendered) { this._fullRender(); this._startTick(); }
+    if (!this._rendered) this._fullRender();
     else {
       // Only update if our entities' states changed
       const key = this._getEntityIds().map(e => hass.states[e]?.last_updated).join(",");
@@ -1160,6 +1161,7 @@ class MzkzgTransportCard extends HTMLElement {
   disconnectedCallback() {
     if (this._tickTimer) { clearInterval(this._tickTimer); this._tickTimer = null; }
     if (this._visHandler) { document.removeEventListener("visibilitychange", this._visHandler); this._visHandler = null; }
+    if (this._mapCtx) this._mapCtx.destroy();
   }
 
   _bindVisibility() {
@@ -1290,21 +1292,39 @@ class MzkzgTransportCard extends HTMLElement {
   }
 
   _preloadLeaflet() {
-    if (!this._leafletLoading) {
-      this._leafletLoading = new Promise((resolve) => {
-        const l = document.createElement("link");
-        l.rel = "stylesheet";
-        l.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-        l.onload = () => {
-          const s = document.createElement("script");
-          s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-          s.onload = resolve;
-          document.head.appendChild(s);
-        };
-        document.head.appendChild(l);
-      });
-    }
-    return this._leafletLoading;
+    if (window.L) return Promise.resolve(window.L);
+    if (leafletLoadPromise) return leafletLoadPromise;
+
+    leafletLoadPromise = new Promise((resolve, reject) => {
+      if (!document.getElementById("polish-transport-leaflet-css")) {
+        const link = document.createElement("link");
+        link.id = "polish-transport-leaflet-css";
+        link.rel = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        document.head.appendChild(link);
+      }
+
+      let script = document.getElementById("polish-transport-leaflet-js");
+      if (!script) {
+        script = document.createElement("script");
+        script.id = "polish-transport-leaflet-js";
+        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+        document.head.appendChild(script);
+      }
+      const onLoad = () => {
+        script.removeEventListener("error", onError);
+        resolve(window.L);
+      };
+      const onError = () => {
+        script.removeEventListener("load", onLoad);
+        script.remove();
+        leafletLoadPromise = null;
+        reject(new Error("Failed to load Leaflet"));
+      };
+      script.addEventListener("load", onLoad, { once: true });
+      script.addEventListener("error", onError, { once: true });
+    });
+    return leafletLoadPromise;
   }
 
   _buildVehicleMarker(bearing, color, route, vehicleType, info, isMobile) {
@@ -1337,8 +1357,28 @@ class MzkzgTransportCard extends HTMLElement {
     const overlay = document.createElement("div");
     overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:100000;display:flex;align-items:center;justify-content:center;";
     overlay.innerHTML = `<div style="position:relative;width:${w}px;height:${h}px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.3);"><button style="position:absolute;top:8px;right:8px;z-index:1001;background:rgba(0,0,0,0.6);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:#fff;">✕</button><div id="vmap" style="width:${w}px;height:${h}px;"></div><div id="vmap-status" style="position:absolute;bottom:6px;left:10px;z-index:1001;font-size:10px;color:#999;background:rgba(255,255,255,0.8);padding:2px 6px;border-radius:4px">🔄 odświeżanie co 30s</div></div>`;
+    const ctx = {
+      overlay,
+      map: null,
+      markers: [],
+      interval: null,
+      ro: null,
+      destroyed: false,
+      entityId: info.entityId,
+      vehicleCode: info.code,
+      destroy: () => {
+        if (ctx.destroyed) return;
+        ctx.destroyed = true;
+        if (ctx.interval) clearInterval(ctx.interval);
+        if (ctx.ro) ctx.ro.disconnect();
+        if (ctx.map) ctx.map.remove();
+        overlay.remove();
+        if (this._mapCtx === ctx) this._mapCtx = null;
+      },
+    };
+    this._mapCtx = ctx;
     document.body.appendChild(overlay);
-    const closeMap = () => { if (this._mapCtx) this._mapCtx.destroy(); };
+    const closeMap = () => ctx.destroy();
     overlay.querySelector("button").onclick = closeMap;
     overlay.onclick = (e) => { if (e.target === overlay) closeMap(); };
 
@@ -1376,7 +1416,7 @@ class MzkzgTransportCard extends HTMLElement {
     };
 
     if (window.L) { createMap(); }
-    else { (this._leafletLoading || this._preloadLeaflet()).then(createMap); }
+    else { this._preloadLeaflet().then(createMap).catch(() => ctx.destroy()); }
   }
 
   _renderAllVehicleMarkers(ctx, info, isMobile) {
@@ -1739,7 +1779,7 @@ class MzkzgTransportCard extends HTMLElement {
       if (hash !== this._lastDepsHash) {
         this._lastDepsHash = hash;
         el.innerHTML = html;
-        this._bindTapActions();
+        this._bindDepartureActions();
       }
     }
     // Re-render tabs

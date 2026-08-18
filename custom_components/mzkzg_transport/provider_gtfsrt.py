@@ -5,7 +5,7 @@ import csv
 import logging
 import zipfile
 from datetime import timedelta
-from io import BytesIO, StringIO
+from io import BytesIO, StringIO, TextIOWrapper
 
 import aiohttp
 
@@ -17,13 +17,26 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _read_csv(zf, filename):
-    """Read a GTFS CSV file from zip, return (header, rows) using proper CSV parsing."""
+    """Open a GTFS CSV file and stream its rows from the zip."""
     if filename not in zf.namelist():
-        return None, []
-    text = zf.read(filename).decode("utf-8-sig")
-    reader = csv.reader(StringIO(text))
-    header = next(reader)
-    return header, list(reader)
+        return None, iter(())
+
+    raw = zf.open(filename)
+    text = TextIOWrapper(raw, encoding="utf-8-sig", newline="")
+    reader = csv.reader(text)
+    try:
+        header = next(reader)
+    except (StopIteration, UnicodeDecodeError):
+        text.close()
+        return None, iter(())
+
+    def rows():
+        try:
+            yield from reader
+        finally:
+            text.close()
+
+    return header, rows()
 
 # GTFS-RT city configs: static GTFS zip + realtime TripUpdates URL
 GTFSRT_CITIES = {
@@ -429,7 +442,17 @@ async def fetch(coord: "MzkzgTransportCoordinator") -> dict:
     # If fewer than 5 departures, load tomorrow's schedule
     if len(unique) < 5 and gtfs.get("_raw"):
         tomorrow = now + timedelta(days=1)
-        tomorrow_deps = _get_tomorrow_departures(gtfs, coord.stop_id, tomorrow, now)
+        tomorrow_prefix = f"{tomorrow:%Y%m%d}_"
+        tomorrow_key = f"{tomorrow_prefix}{coord.stop_id}"
+        tomorrow_cache = gtfs.setdefault("_tomorrow_departures", {})
+        if tomorrow_key not in tomorrow_cache:
+            for old_key in list(tomorrow_cache):
+                if not old_key.startswith(tomorrow_prefix):
+                    tomorrow_cache.pop(old_key)
+            tomorrow_cache[tomorrow_key] = _get_tomorrow_departures(
+                gtfs, coord.stop_id, tomorrow, now
+            )
+        tomorrow_deps = tomorrow_cache[tomorrow_key]
         for d in tomorrow_deps:
             est = (d.get("estimated_time") or "")[:16]
             key = (d.get("route"), d.get("headsign"), est)
@@ -452,6 +475,10 @@ def _get_tomorrow_departures(gtfs, stop_id, tomorrow, now):
     """Get scheduled departures for tomorrow from raw GTFS zip."""
     from datetime import date as dt_date
     
+    cache_key = f"tomorrow_{stop_id}_{tomorrow.strftime('%Y%m%d')}"
+    if cache_key in gtfs:
+        return gtfs[cache_key]
+
     raw = gtfs.get("_raw")
     if not raw:
         return []
@@ -568,7 +595,8 @@ def _get_tomorrow_departures(gtfs, stop_id, tomorrow, now):
         })
 
     departures.sort(key=lambda x: x.get("estimated_time") or "")
-    return departures[:15]
+    gtfs[cache_key] = departures[:15]
+    return gtfs[cache_key]
 
 
 # Bytes pulled from the end of a remote zip — enough for the central directory
@@ -697,6 +725,15 @@ async def _get_gzm_gtfs_url(session, package_id: str, target_date=None) -> str |
 
 
 async def _get_gtfs_data(coord, session, city_cfg, now):
+    """Load GTFS data once when several stops refresh concurrently."""
+    domain_data = coord.hass.data[DOMAIN]
+    locks = domain_data.setdefault("_gtfsrt_locks", {})
+    lock = locks.setdefault(coord.provider, asyncio.Lock())
+    async with lock:
+        return await _get_gtfs_data_locked(coord, session, city_cfg, now)
+
+
+async def _get_gtfs_data_locked(coord, session, city_cfg, now):
     """Load and cache parsed GTFS data (daily)."""
     cache = coord.hass.data[DOMAIN].setdefault("_gtfsrt_cache", {})
     today = now.strftime("%Y%m%d")
@@ -730,27 +767,64 @@ async def _get_gtfs_data(coord, session, city_cfg, now):
                 _LOGGER.warning("GTFS-RT: could not get dynamic URL for GZM")
                 return None
 
-        async with session.get(gtfs_url, timeout=aiohttp.ClientTimeout(total=120)) as resp:
-            if resp.status != 200:
+        import os
+        zip_path = coord.hass.config.path(f"mzkzg_gtfs_{coord.provider}.zip")
+        
+        try:
+            async with session.get(gtfs_url, timeout=aiohttp.ClientTimeout(total=120)) as resp:
+                if resp.status != 200:
+                    raise Exception(f"HTTP {resp.status}")
+                data = await resp.read()
+            
+            def save_zip():
+                with open(zip_path, "wb") as f:
+                    f.write(data)
+            await coord.hass.async_add_executor_job(save_zip)
+        except Exception as e:
+            def load_zip():
+                if os.path.exists(zip_path):
+                    with open(zip_path, "rb") as f:
+                        return f.read()
                 return None
-            data = await resp.read()
+            data = await coord.hass.async_add_executor_job(load_zip)
+            if not data:
+                _LOGGER.warning("GTFS-RT: failed to fetch GTFS for %s and no local fallback: %s", coord.provider, e)
+                return None
+            _LOGGER.warning("GTFS-RT: Network failed, using local offline fallback for %s", coord.provider)
 
         gtfs = _parse_gtfs_zip(data)
 
         # Merge secondary GTFS zip (e.g. Kraków tram)
         if city_cfg.get("gtfs_url_tram"):
+            zip_tram_path = coord.hass.config.path(f"mzkzg_gtfs_{coord.provider}_tram.zip")
             try:
                 async with session.get(city_cfg["gtfs_url_tram"], timeout=aiohttp.ClientTimeout(total=120)) as resp2:
-                    if resp2.status == 200:
-                        data2 = await resp2.read()
-                        gtfs2 = _parse_gtfs_zip(data2)
-                        gtfs["stops"].update(gtfs2["stops"])
-                        gtfs["routes"].update(gtfs2["routes"])
-                        gtfs["trips"].update(gtfs2["trips"])
-                        # Store secondary raw zip for stop_times parsing
-                        gtfs["_raw_tram"] = data2
+                    if resp2.status != 200:
+                        raise Exception(f"HTTP {resp2.status}")
+                    data2 = await resp2.read()
+                def save_tram():
+                    with open(zip_tram_path, "wb") as f:
+                        f.write(data2)
+                await coord.hass.async_add_executor_job(save_tram)
             except Exception as e:
-                _LOGGER.debug("GTFS-RT: failed to load tram GTFS for %s: %s", coord.provider, e)
+                def load_tram():
+                    if os.path.exists(zip_tram_path):
+                        with open(zip_tram_path, "rb") as f:
+                            return f.read()
+                    return None
+                data2 = await coord.hass.async_add_executor_job(load_tram)
+                if not data2:
+                    _LOGGER.debug("GTFS-RT: failed to load tram GTFS for %s: %s", coord.provider, e)
+            
+            if data2:
+                try:
+                    gtfs2 = _parse_gtfs_zip(data2)
+                    gtfs["stops"].update(gtfs2["stops"])
+                    gtfs["routes"].update(gtfs2["routes"])
+                    gtfs["trips"].update(gtfs2["trips"])
+                    gtfs["_raw_tram"] = data2
+                except Exception as e:
+                    _LOGGER.debug("GTFS-RT: failed to parse tram GTFS for %s: %s", coord.provider, e)
 
         cache[cache_key] = gtfs
         # Parse stop_times for current stop
@@ -879,11 +953,9 @@ def _parse_stop_times_for(gtfs, stop_id):
     trips = gtfs["trips"]
     stops = gtfs["stops"]
     with zipfile.ZipFile(BytesIO(raw)) as zf:
-        if "stop_times.txt" not in zf.namelist():
+        header, reader = _read_csv(zf, "stop_times.txt")
+        if not header:
             return
-        text = zf.read("stop_times.txt").decode("utf-8-sig")
-        reader = csv.reader(StringIO(text))
-        header = next(reader)
         tid_idx = header.index("trip_id")
         sid_idx = header.index("stop_id")
         dep_idx = header.index("departure_time")
@@ -943,11 +1015,9 @@ def _parse_stop_times_from_raw(gtfs, stop_id, raw_data):
     trips = gtfs["trips"]
     stops = gtfs["stops"]
     with zipfile.ZipFile(BytesIO(raw_data)) as zf:
-        if "stop_times.txt" not in zf.namelist():
+        header, reader = _read_csv(zf, "stop_times.txt")
+        if not header:
             return
-        text = zf.read("stop_times.txt").decode("utf-8-sig")
-        reader = csv.reader(StringIO(text))
-        header = next(reader)
         tid_idx = header.index("trip_id")
         sid_idx = header.index("stop_id")
         dep_idx = header.index("departure_time")

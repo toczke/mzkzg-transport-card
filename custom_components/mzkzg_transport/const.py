@@ -24,6 +24,7 @@ KIEDYPRZYJEDZIE_MZK_STAROGARD_URL = "https://starogard.kiedyprzyjedzie.pl"
 KIEDYPRZYJEDZIE_PKS_STAROGARD_URL = "https://pksstarogard.kiedyprzyjedzie.pl"
 KIEDYPRZYJEDZIE_BYTOW_URL = "https://bytow.kiedyprzyjedzie.pl"
 KIEDYPRZYJEDZIE_CZLUCHOW_URL = "https://czluchow.kiedyprzyjedzie.pl"
+KIEDYPRZYJEDZIE_BIELSKO_URL = "https://bielsko.kiedyprzyjedzie.pl"
 TIME4BUS_API_BASE = "https://time4bus.com/t4b"
 TIME4BUS_TCZEW_OPERATOR = "tczew"
 TIME4BUS_TCZEW_STOPS_URL = f"{TIME4BUS_API_BASE}/operators/{TIME4BUS_TCZEW_OPERATOR}/stops"
@@ -46,6 +47,7 @@ PROVIDER_MZK_STAROGARD = "kiedyprzyjedzie_mzk_starogard"
 PROVIDER_PKS_STAROGARD = "kiedyprzyjedzie_pks_starogard"
 PROVIDER_BYTOW = "kiedyprzyjedzie_bytow"
 PROVIDER_CZLUCHOW = "kiedyprzyjedzie_czluchow"
+PROVIDER_BIELSKO = "kiedyprzyjedzie_bielsko"
 PROVIDER_TCZEW = "time4bus_tczew"
 PROVIDER_LODZ = "mpk_lodz"
 PROVIDER_POZNAN = "gtfsrt_poznan"
@@ -115,6 +117,7 @@ KIEDYPRZYJEDZIE_BASE_URLS = {
     PROVIDER_PKS_STAROGARD: KIEDYPRZYJEDZIE_PKS_STAROGARD_URL,
     PROVIDER_BYTOW: KIEDYPRZYJEDZIE_BYTOW_URL,
     PROVIDER_CZLUCHOW: KIEDYPRZYJEDZIE_CZLUCHOW_URL,
+    PROVIDER_BIELSKO: KIEDYPRZYJEDZIE_BIELSKO_URL,
 }
 
 TIME4BUS_BASE_URLS = {
@@ -140,6 +143,7 @@ PROVIDER_LABELS = {
     PROVIDER_PKS_STAROGARD: "PKS Starogard Gda\u0144ski S.A.",
     PROVIDER_BYTOW: "Byt\u00f3w",
     PROVIDER_CZLUCHOW: "Powiat Cz\u0142uchowski",
+    PROVIDER_BIELSKO: "MZK Bielsko-Bia\u0142a",
     PROVIDER_TCZEW: "Tczew",
     PROVIDER_LODZ: "MPK \u0141\u00f3d\u017a",
     PROVIDER_POZNAN: "ZTM Pozna\u0144",
@@ -204,6 +208,7 @@ PROVIDER_COLORS = {
     PROVIDER_PKS_STAROGARD: "#1e3a8a",
     PROVIDER_BYTOW: "#155e75",
     PROVIDER_CZLUCHOW: "#991b1b",
+    PROVIDER_BIELSKO: "#0f766e",
     PROVIDER_TCZEW: "#1d4ed8",
     PROVIDER_LODZ: "#e11d48",
     PROVIDER_POZNAN: "#15803d",

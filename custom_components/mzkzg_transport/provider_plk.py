@@ -77,7 +77,7 @@ async def fetch(coord: "MzkzgTransportCoordinator") -> dict:
             params = {
                 "stations": coord.stop_id,
                 "dateFrom": today,
-                "dateTo": today,
+                "dateTo": (now + timedelta(days=1)).strftime("%Y-%m-%d"),
                 "dictionaries": "true",
                 "fullRoute": "true",
             }
@@ -218,7 +218,7 @@ async def fetch(coord: "MzkzgTransportCoordinator") -> dict:
                 break
 
     departures.sort(key=lambda x: x.get("estimated_time") or "")
-    departures = departures[:30]
+    departures = departures[:50]
     return {
         "stop_id": coord.stop_id,
         "stop_name": coord.stop_name or f"Stacja {coord.stop_id}",
