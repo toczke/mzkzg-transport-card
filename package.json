@@ -1,9 +1,13 @@
 {
   "devDependencies": {
-    "@playwright/test": "1.62.0"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.62.0",
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0"
   },
   "scripts": {
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "lint": "eslint custom_components/**/*.js"
   }
 }

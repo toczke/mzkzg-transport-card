@@ -1180,7 +1180,6 @@ class MzkzgTransportCard extends HTMLElement {
     // Get all departures without route/destination/platform filters (for "next departure" hint)
     if (!this._hass || !this._config.entities?.length) return [];
     let deps = [];
-    const showProviderHeaders = !c.group_by_provider || c.group_by_provider === true;
     for (const entityCfg of this._getEntityEntries()) {
       const eid = typeof entityCfg === "string" ? entityCfg : entityCfg.entity;
       const s = this._hass.states[eid];
@@ -1211,8 +1210,10 @@ class MzkzgTransportCard extends HTMLElement {
       for (const d of (Array.isArray(state.attributes.departures) ? state.attributes.departures : [])) {
         try {
           if (!d || typeof d !== "object") continue;
+          const showProviderHeaders = !c.group_by_provider || c.group_by_provider === true;
+          const providerLabel = provider;
           if (showProviderHeaders && deps.length > 0 && (deps[deps.length-1]._provider !== (d.provider || provider))) {
-            deps.push({ _header: d.provider || provider, _headerLabel: PROVIDER_LABELS[d.provider] || d.provider, _stopName: stopName, _entityConfig: entityCfg, _entityId: entityCfg.entity });
+            deps.push({ _header: d.provider || provider, _headerLabel: d.provider || provider, _stopName: stopName, _entityConfig: entityCfg, _entityId: entityCfg.entity });
           }
           deps.push({ ...d, _provider: d.provider || provider, _stopName: stopName, _entityConfig: entityCfg, _entityId: entityCfg.entity, _provider_label: providerLabel });
         } catch (_) { /* skip malformed departure */ }
@@ -1286,7 +1287,7 @@ class MzkzgTransportCard extends HTMLElement {
       return ma - mb;
     });
 
-    const cap = d._entityConfig?.max_departures || c.max_departures;
+    const cap = c.max_departures || 10;
     return deps.slice(0, cap);
   }
 
@@ -1352,6 +1353,23 @@ class MzkzgTransportCard extends HTMLElement {
       document.head.appendChild(s);
     }
 
+    const ctx = {
+      destroyed: false,
+      map: null,
+      interval: null,
+      ro: null,
+      markers: {},
+      overlay: overlay,
+      destroy: () => {
+        ctx.destroyed = true;
+        if (ctx.interval) clearInterval(ctx.interval);
+        if (ctx.ro) ctx.ro.disconnect();
+        if (ctx.map) { ctx.map.remove(); ctx.map = null; }
+        if (ctx.overlay && ctx.overlay.parentNode) ctx.overlay.parentNode.removeChild(ctx.overlay);
+        if (this._mapCtx === ctx) this._mapCtx = null;
+      }
+    };
+    this._mapCtx = ctx;
 
     const color = routeColor(info.route, info.provider || "");
 
