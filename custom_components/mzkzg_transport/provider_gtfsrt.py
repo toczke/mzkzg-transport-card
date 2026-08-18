@@ -449,8 +449,8 @@ async def fetch(coord: "MzkzgTransportCoordinator") -> dict:
             for old_key in list(tomorrow_cache):
                 if not old_key.startswith(tomorrow_prefix):
                     tomorrow_cache.pop(old_key)
-            tomorrow_cache[tomorrow_key] = _get_tomorrow_departures(
-                gtfs, coord.stop_id, tomorrow, now
+            tomorrow_cache[tomorrow_key] = await coord.hass.async_add_executor_job(
+                _get_tomorrow_departures, gtfs, coord.stop_id, tomorrow, now
             )
         tomorrow_deps = tomorrow_cache[tomorrow_key]
         for d in tomorrow_deps:
@@ -743,7 +743,7 @@ async def _get_gtfs_data_locked(coord, session, city_cfg, now):
         gtfs = cache[cache_key]
         # Parse stop_times for this specific stop if not already done
         if coord.stop_id not in gtfs["stop_times"] and gtfs.get("_raw"):
-            _parse_stop_times_for(gtfs, coord.stop_id)
+            await coord.hass.async_add_executor_job(_parse_stop_times_for, gtfs, coord.stop_id)
         return gtfs
 
     # Clean old cache entries for this provider (memory leak fix)
@@ -792,7 +792,7 @@ async def _get_gtfs_data_locked(coord, session, city_cfg, now):
                 return None
             _LOGGER.warning("GTFS-RT: Network failed, using local offline fallback for %s", coord.provider)
 
-        gtfs = _parse_gtfs_zip(data)
+        gtfs = await coord.hass.async_add_executor_job(_parse_gtfs_zip, data)
 
         # Merge secondary GTFS zip (e.g. Kraków tram)
         if city_cfg.get("gtfs_url_tram"):
@@ -818,7 +818,7 @@ async def _get_gtfs_data_locked(coord, session, city_cfg, now):
             
             if data2:
                 try:
-                    gtfs2 = _parse_gtfs_zip(data2)
+                    gtfs2 = await coord.hass.async_add_executor_job(_parse_gtfs_zip, data2)
                     gtfs["stops"].update(gtfs2["stops"])
                     gtfs["routes"].update(gtfs2["routes"])
                     gtfs["trips"].update(gtfs2["trips"])
@@ -829,7 +829,7 @@ async def _get_gtfs_data_locked(coord, session, city_cfg, now):
         cache[cache_key] = gtfs
         # Parse stop_times for current stop
         if coord.stop_id not in gtfs["stop_times"]:
-            _parse_stop_times_for(gtfs, coord.stop_id)
+            await coord.hass.async_add_executor_job(_parse_stop_times_for, gtfs, coord.stop_id)
         return gtfs
     except Exception as e:
         _LOGGER.warning("GTFS-RT: failed to load GTFS for %s: %s", coord.provider, e)
