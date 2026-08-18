@@ -14,6 +14,7 @@ from mzkzg_transport.provider_gtfsrt import (
     _parse_stop_times_for,
     _peek_zip_member,
     _get_rt_delays,
+    _read_csv,
     _parse_rt_feed,
     _parse_gtfsrt_positions,
     fetch,
@@ -59,6 +60,17 @@ def _today_str():
 
 def _day_name():
     return ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][date.today().weekday()]
+
+
+def test_read_csv_streams_rows_from_zip():
+    """Large GTFS members are not materialized as a list or decoded string."""
+    data = _make_gtfs_zip(stops="stop_id,stop_name\nS1,First\nS2,Second")
+
+    with zipfile.ZipFile(BytesIO(data)) as zf:
+        header, rows = _read_csv(zf, "stops.txt")
+        assert header == ["stop_id", "stop_name"]
+        assert not isinstance(rows, list)
+        assert list(rows) == [["S1", "First"], ["S2", "Second"]]
 
 
 def _calendar_line(service_id, active_today=True):

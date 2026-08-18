@@ -530,6 +530,32 @@ class MzkzgTransportCardEditor extends HTMLElement {
     this._refreshEntityOptions();
   }
 
+  _updatePreview() {
+    const el = this.shadowRoot.getElementById("card-preview");
+    if (!el) return;
+    const section = this.shadowRoot.getElementById("preview-section");
+    if (!section) return;
+    const entities = this._selectedEntityIds();
+    if (!entities.length) { section.style.display = "none"; return; }
+    section.style.display = "";
+    const maxDeps = Math.min(parseInt(this.shadowRoot.getElementById("max_departures")?.value) || 10, 5);
+    let html = "";
+    for (const eid of entities.slice(0, 3)) {
+      const state = this._hass?.states[eid];
+      if (!state) { html += `<div style="color:var(--secondary-text-color);padding:4px 0">${escapeHtml(eid.replace("sensor.",""))}: brak danych</div>`; continue; }
+      const deps = (state.attributes?.departures || []).slice(0, maxDeps);
+      html += `<div style="font-weight:600;padding:4px 0;border-bottom:1px solid var(--divider-color,#f0f0f0)">${escapeHtml(state.attributes?.stop_name || eid.replace("sensor.","").replace(/_odjazdy$/,""))}</div>`;
+      if (!deps.length) html += `<div style="color:var(--secondary-text-color);font-size:11px;padding:2px 0">Brak odjazdów</div>`;
+      for (const d of deps) {
+        const mins = minutesUntil(d.estimated_time);
+        const time = formatTime(d.estimated_time);
+        const delay = d.delay_seconds ? ` <span style="color:${d.delay_seconds>0?'#e53935':'#43a047'}">${d.delay_seconds>0?'+':''}${Math.round(d.delay_seconds/60)}min</span>` : "";
+        html += `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-size:12px"><span style="font-weight:700;min-width:30px">${escapeHtml(d.route)}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">→ ${escapeHtml(d.headsign||"")}</span><span>${time}${delay}</span></div>`;
+      }
+    }
+    el.innerHTML = html;
+  }
+
   setConfig(config) {
     if (this._firing) { this._firing = false; return; }
     this._config = { ...config };
@@ -1119,31 +1145,7 @@ class MzkzgTransportCard extends HTMLElement {
     return this._getEntityEntries().map(e => e.entity);
   }
 
-  _updatePreview() {
-    const el = this.shadowRoot.getElementById("card-preview");
-    if (!el) return;
-    const section = this.shadowRoot.getElementById("preview-section");
-    if (!section) return;
-    const entities = this._selectedEntityIds();
-    if (!entities.length) { section.style.display = "none"; return; }
-    section.style.display = "";
-    const maxDeps = Math.min(parseInt(this.shadowRoot.getElementById("max_departures")?.value) || 10, 5);
-    let html = "";
-    for (const eid of entities.slice(0, 3)) {
-      const state = this._hass?.states[eid];
-      if (!state) { html += `<div style="color:var(--secondary-text-color);padding:4px 0">${escapeHtml(eid.replace("sensor.",""))}: brak danych</div>`; continue; }
-      const deps = (state.attributes?.departures || []).slice(0, maxDeps);
-      html += `<div style="font-weight:600;padding:4px 0;border-bottom:1px solid var(--divider-color,#f0f0f0)">${escapeHtml(state.attributes?.stop_name || eid.replace("sensor.","").replace(/_odjazdy$/,""))}</div>`;
-      if (!deps.length) html += `<div style="color:var(--secondary-text-color);font-size:11px;padding:2px 0">Brak odjazdów</div>`;
-      for (const d of deps) {
-        const mins = minutesUntil(d.estimated_time);
-        const time = formatTime(d.estimated_time);
-        const delay = d.delay_seconds ? ` <span style="color:${d.delay_seconds>0?'#e53935':'#43a047'}">${d.delay_seconds>0?'+':''}${Math.round(d.delay_seconds/60)}min</span>` : "";
-        html += `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-size:12px"><span style="font-weight:700;min-width:30px">${escapeHtml(d.route)}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">→ ${escapeHtml(d.headsign||"")}</span><span>${time}${delay}</span></div>`;
-      }
-    }
-    el.innerHTML = html;
-  }
+
 
   getCardSize() { return (this._config.max_departures || 10) + 1; }
 
