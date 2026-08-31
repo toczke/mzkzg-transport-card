@@ -24,13 +24,16 @@ export class VehicleMap {
     const size = isMobile ? 32 : 40;
     const fontSize = isMobile ? 11 : 13;
     const half = size / 2;
+    // Rotate the arrow path around the center of the circle
+    // By default, the path points DOWN (South). We add 180 so bearing 0 (North) points UP.
+    const pathRotation = bearing + 180;
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size + 6}" viewBox="0 0 ${size} ${size + 6}">
       <circle cx="${half}" cy="${half}" r="${half - 3}" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+      <path d="M${half},${size - 3} Q${half - 14},${size + 1} ${half - 7},${size - 1} L${half},${size + 6} L${half + 7},${size - 1} Q${half + 14},${size + 1} ${half},${size - 3} Z" fill="${color}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" transform="rotate(${pathRotation}, ${half}, ${half})"/>
       <text x="${half}" y="${half}" text-anchor="middle" dominant-baseline="central" font-weight="700" font-size="${fontSize}" fill="#fff" font-family="system-ui,sans-serif">${escapeHtml(route)}</text>
-      <path d="M${half},${size - 3} Q${half - 14},${size + 1} ${half - 7},${size - 1} L${half},${size + 6} L${half + 7},${size - 1} Q${half + 14},${size + 1} ${half},${size - 3} Z" fill="${color}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
     </svg>`;
 
-    return { svg, size, arrowH: size + 7 };
+    return { svg, size, arrowH: size + 6 };
   }
 
   buildPopupContent(d) {
@@ -69,7 +72,7 @@ export class VehicleMap {
       map: null,
       interval: null,
       ro: null,
-      markers: {},
+      markers: [],
       overlay: overlay,
       destroy: () => {
         ctx.destroyed = true;
@@ -78,11 +81,13 @@ export class VehicleMap {
         if (ctx.map) { ctx.map.remove(); ctx.map = null; }
         if (ctx.overlay && ctx.overlay.parentNode) ctx.overlay.parentNode.removeChild(ctx.overlay);
         if (this.mapCtx === ctx) this.mapCtx = null;
-      }
+      },
+      entityId: info.entityId,
+      vehicleCode: info.code,
     };
     this.mapCtx = ctx;
 
-    const color = routeColor(info.route, info.provider || "");
+    const color = routeColor(info.route, info.provider || "", info.route_color);
 
     const createMap = () => {
       requestAnimationFrame(() => {
@@ -99,9 +104,35 @@ export class VehicleMap {
         // Show all vehicles with GPS from this entity
         this.renderAllVehicleMarkers(ctx, info, isMobile);
 
+        // Fetch polyline shape for ZTM Gdańsk
+        if (info.provider === "ztm_gdansk" && info.route_id_int && info.trip_id) {
+          const today = new Date().toISOString().split("T")[0];
+          const shapeUrl = `https://ckan2.multimediagdansk.pl/shapes?date=${today}&routeId=${info.route_id_int}&tripId=${info.trip_id}`;
+          fetch(shapeUrl)
+            .then(r => r.json())
+            .then(data => {
+              if (ctx.destroyed || !ctx.map) return;
+              if (data && data.coordinates && Array.isArray(data.coordinates)) {
+                const latlngs = data.coordinates.map(c => [c[1], c[0]]);
+                const shapeColor = routeColor(info.route, info.provider) || "#e53935";
+                const polyline = window.L.polyline(latlngs, {color: shapeColor, weight: 4, opacity: 0.8}).addTo(ctx.map);
+                
+                // Add tiny markers for each stop in the shape (optional, let's keep it simple and just draw the line)
+              }
+            }).catch(e => console.warn("Failed to load shape for Gdańsk:", e));
+        }
+
         ctx.ro = new window.ResizeObserver(() => { if (ctx.map) ctx.map.invalidateSize(); });
         ctx.ro.observe(container);
         ctx.interval = setInterval(() => this.updateAllVehiclePositions(ctx), 30000);
+
+        // DEBUG OVERLAY
+        const debugDiv = document.createElement("div");
+        debugDiv.style.cssText = "position:absolute;top:0;left:0;z-index:1002;background:rgba(255,255,255,0.9);color:red;padding:5px;font-size:10px;pointer-events:none;";
+        const st = this.card.hass.states[ctx.entityId];
+        const deps = st?.attributes?.departures?.length || 0;
+        debugDiv.innerHTML = `EID: ${ctx.entityId}<br>Deps: ${deps}<br>Provider: ${info.provider}<br>Route: ${info.route}<br>Trip: ${info.trip_id}`;
+        overlay.appendChild(debugDiv);
       });
     };
 
@@ -125,7 +156,7 @@ export class VehicleMap {
       if (!pos) continue;
 
       const isMain = d.vehicle_code && d.vehicle_code === ctx.vehicleCode;
-      const color = routeColor(d.route, d._provider || d.provider || "");
+      const color = routeColor(d.route, d._provider || d.provider || "", d.route_color);
       const bearing = d.vehicle_direction || d.direction || 0;
       
       
@@ -134,8 +165,8 @@ export class VehicleMap {
       const r = d.route || "?";
       const b = bearing;
       const mk = this.buildVehicleMarker(b, color, r, d.vehicle_type || "bus", d, isMobile);
-      const label = d.vehicle_code ? `<div style="position:absolute; top:-22px; left:50%; transform:translateX(-50%) rotate(-${b + 180}deg); background:rgba(0,0,0,0.75); color:#fff; padding:2px 5px; border-radius:3px; font-size:10px; font-weight:600; font-family:system-ui,sans-serif; white-space:nowrap; pointer-events:none;">${escapeHtml(d.vehicle_code)}</div>` : "";
-      const mkHtml = `<div class="zm-arrow" style="transform:rotate(${b + 180}deg);opacity:${isMain ? 1 : 0.7}">${label}${mk.svg}</div>`;
+      const label = d.vehicle_code ? `<div style="position:absolute; top:-22px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.75); color:#fff; padding:2px 5px; border-radius:3px; font-size:10px; font-weight:600; font-family:system-ui,sans-serif; white-space:nowrap; pointer-events:none;">${escapeHtml(d.vehicle_code)}</div>` : "";
+      const mkHtml = `<div class="zm-arrow" style="opacity:${isMain ? 1 : 0.7}">${label}${mk.svg}</div>`;
       const icon = window.L.divIcon({
         className: "",
         html: mkHtml,
@@ -167,12 +198,12 @@ export class VehicleMap {
       const pos = parseVehiclePosition(d.vehicle_lat, d.vehicle_lng);
       if (!pos) continue;
       const isMain = d.vehicle_code && d.vehicle_code === ctx.vehicleCode;
-      const color = routeColor(d.route, d._provider || d.provider || "");
+      const color = routeColor(d.route, d._provider || d.provider || "", d.route_color);
       const b = d.vehicle_direction || d.direction || 0;
       const r = d.route || "?";
       const mk = this.buildVehicleMarker(b, color, r, d.vehicle_type || "bus", d, isMobile);
-      const label = d.vehicle_code ? `<div style="position:absolute; top:-22px; left:50%; transform:translateX(-50%) rotate(-${b + 180}deg); background:rgba(0,0,0,0.75); color:#fff; padding:2px 5px; border-radius:3px; font-size:10px; font-weight:600; font-family:system-ui,sans-serif; white-space:nowrap; pointer-events:none;">${escapeHtml(d.vehicle_code)}</div>` : "";
-      const mkHtml = `<div class="zm-arrow" style="transform:rotate(${b + 180}deg);opacity:${isMain ? 1 : 0.7}">${label}${mk.svg}</div>`;
+      const label = d.vehicle_code ? `<div style="position:absolute; top:-22px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.75); color:#fff; padding:2px 5px; border-radius:3px; font-size:10px; font-weight:600; font-family:system-ui,sans-serif; white-space:nowrap; pointer-events:none;">${escapeHtml(d.vehicle_code)}</div>` : "";
+      const mkHtml = `<div class="zm-arrow" style="opacity:${isMain ? 1 : 0.7}">${label}${mk.svg}</div>`;
       const icon = window.L.divIcon({
         className: "", html: mkHtml,
         iconSize: [mk.size, mk.arrowH], iconAnchor: [mk.size / 2, mk.arrowH],
@@ -197,12 +228,12 @@ export class VehicleMap {
         ctx.marker.setLatLng([newLat, newLng]);
         
         const bearing = d.vehicle_direction || d.direction || 0;
-        const color = routeColor(d.route, d._provider || d.provider || "");
+        const color = routeColor(d.route, d._provider || d.provider || "", d.route_color);
         const vt = d.vehicle_type || "bus";
         const isMobile = window.innerWidth < 480;
         const mk = this.buildVehicleMarker(bearing, color, d.route, vt, d, isMobile);
-        const label = d.vehicle_code ? `<div style="position:absolute; top:-22px; left:50%; transform:translateX(-50%) rotate(-${bearing + 180}deg); background:rgba(0,0,0,0.75); color:#fff; padding:2px 5px; border-radius:3px; font-size:10px; font-weight:600; font-family:system-ui,sans-serif; white-space:nowrap; pointer-events:none;">${escapeHtml(d.vehicle_code)}</div>` : "";
-        const mkHtml = `<div class="zm-arrow" style="transform:rotate(${bearing + 180}deg)">${label}${mk.svg}</div>`;
+        const label = d.vehicle_code ? `<div style="position:absolute; top:-22px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.75); color:#fff; padding:2px 5px; border-radius:3px; font-size:10px; font-weight:600; font-family:system-ui,sans-serif; white-space:nowrap; pointer-events:none;">${escapeHtml(d.vehicle_code)}</div>` : "";
+        const mkHtml = `<div class="zm-arrow">${label}${mk.svg}</div>`;
         ctx.marker.setIcon(window.L.divIcon({
           className: "",
           html: mkHtml,

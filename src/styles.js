@@ -37,6 +37,7 @@ ha-card.e-ink .dep-row { transition: none; }
 .tab.active { color: var(--mzkzg-text); border-bottom-color: var(--primary-color, #005eb8); }
 .tab:hover { color: var(--mzkzg-text); }
 .tab:focus-visible { outline: 2px solid var(--mzkzg-focus); outline-offset: -2px; }
+.provider-header { padding: 4px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; background: rgba(0, 0, 0, 0.04); color: var(--mzkzg-muted); border-bottom: 1px solid var(--divider-color, #e5e5e5); border-top: 1px solid var(--divider-color, #e5e5e5); margin-top: -1px; }
 .dep-row {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 14px; border-bottom: 1px solid var(--mzkzg-divider); min-height: 52px;

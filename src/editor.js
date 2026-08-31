@@ -32,7 +32,6 @@ const SCHEMA = [
   { name: "header_color", selector: { text: { type: "color" } } },
   {
     type: "expandable",
-    name: "",
     title: "Filtry globalne",
     schema: [
       { name: "filter_routes", selector: { text: { multiple: true } } },
@@ -46,7 +45,6 @@ const SCHEMA = [
   },
   {
     type: "expandable",
-    name: "",
     title: "Opcje wizualne",
     schema: [
       { name: "show_stop_name", selector: { boolean: {} } },
@@ -111,7 +109,7 @@ export class MzkzgTransportCardEditor extends LitElement {
   }
 
   _computeLabel(schema) {
-    const labels = {
+    const pl = {
       entities: "Encje (Sensory)",
       title: "Tytuł",
       icon: "Ikona",
@@ -127,14 +125,42 @@ export class MzkzgTransportCardEditor extends LitElement {
       highlight_mode: "Podświetlaj zamiast ukrywać",
       hide_terminus: "Ukryj kończące trasę",
       realtime_only: "Tylko realtime",
+      show_stop_name: "Pokaż nazwę przystanku",
       group_by_provider: "Grupuj po przewoźniku",
       show_delays: "Pokaż opóźnienia",
       show_footer: "Pokaż stopkę",
       show_bike: "Ikona roweru",
       show_wheelchair: "Ikona wózka",
       show_ac: "Ikona klimatyzacji",
-      show_ticket_machine: "Ikona biletomatu"
+      show_ticket_machine: "Ikona biletomatu",
     };
+    const en = {
+      entities: "Entities (Sensors)",
+      title: "Title",
+      icon: "Icon",
+      display_preset: "Display preset",
+      view_mode: "View mode",
+      max_departures: "Max departures",
+      refresh_interval: "Refresh interval",
+      header_color: "Header color",
+      filter_routes: "Filter routes",
+      destination_filter: "Destination filter",
+      filter_platform: "Filter platform",
+      filter_track: "Filter track",
+      highlight_mode: "Highlight mode",
+      hide_terminus: "Hide terminus",
+      realtime_only: "Real-time only",
+      show_stop_name: "Show stop name",
+      group_by_provider: "Group by provider",
+      show_delays: "Show delays",
+      show_footer: "Show footer",
+      show_bike: "Show bike info",
+      show_wheelchair: "Show wheelchair info",
+      show_ac: "Show A/C info",
+      show_ticket_machine: "Show ticket machine",
+    };
+    const lang = this.hass?.language ?? "en";
+    const labels = lang === "pl" ? pl : en;
     return labels[schema.name] || schema.name;
   }
 }

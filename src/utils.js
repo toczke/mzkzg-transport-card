@@ -89,7 +89,8 @@ export function formatMins(min) {
   return `${min} min`;
 }
 
-export function routeColor(route, provider) {
+export function routeColor(route, provider, gtfsColor = null) {
+  if (gtfsColor) return gtfsColor;
   const s = String(route || "");
   if (/^[Nn]/.test(s)) return "#1e293b";  // Night lines (all providers)
   if (provider === "zkm_gdynia") {

@@ -289,7 +289,9 @@ export class MzkzgTransportCard extends LitElement {
         headsign: d.headsign || "",
         delay: Math.round((d.delay_seconds || 0) / 60),
         direction: parseFloat(d.vehicle_direction || d.direction) || null,
-        provider: d._provider || "",
+        provider: d._provider || d.provider || "",
+        trip_id: d.trip_id,
+        route_id_int: d.route_id_int,
         entityId: d._entityId,
         vehicleType: d.vehicle_type || "bus",
         lowFloor: d.floor_height && d.floor_height !== "Pojazd wysokopodłogowy",
@@ -377,12 +379,11 @@ export class MzkzgTransportCard extends LitElement {
       }
       return html`<div class="state-msg"><span class="icon">⏳</span>${t("no_departures")}</div>`;
     }
-
     const hasRowActions = ["none"].indexOf((this._config.tap_action?.action || "more-info")) === -1
       || ["none"].indexOf((this._config.hold_action?.action || "none")) === -1
       || ["none"].indexOf((this._config.double_tap_action?.action || "none")) === -1;
 
-    const rows = deps.map(d => {
+    const renderRow = (d) => {
       const mins = minutesUntil(d.estimated_time);
       const imminent = d.realtime && mins !== null && mins <= 2;
       const delayMin = Math.round((d.delay_seconds || 0) / 60);
@@ -448,7 +449,7 @@ export class MzkzgTransportCard extends LitElement {
              @dblclick=${(e) => this._onRowDblClick(e, d)}
              @contextmenu=${(e) => this._onRowContext(e, d)}
              @keydown=${(e) => { if(e.key==="Enter" || e.key===" ") { e.preventDefault(); this._onRowClick(e, d); }}}>
-          <span class="badge" style="background:${routeColor(d.route, d._provider || d.provider)}">${d.route}</span>
+          <span class="badge" style="background:${routeColor(d.route, d._provider || d.provider, d.route_color)}">${d.route}</span>
           <span class="headsign">
             <span class="head-main"><span class="headsign-text">${d.headsign}</span>${vehicleChip}</span>
             ${metaRow}
@@ -457,7 +458,30 @@ export class MzkzgTransportCard extends LitElement {
           <div class="time-col">${timeHTML}</div>
         </div>
       `;
-    });
+    };
+
+    const rows = [];
+    if (c.group_by_provider) {
+      const grouped = {};
+      deps.forEach(d => {
+        const p = d._provider || "Inne";
+        if (!grouped[p]) grouped[p] = [];
+        grouped[p].push(d);
+      });
+      for (const p in grouped) {
+        let pName;
+        if (p === "ztm_gdansk") pName = "ZTM Gdańsk";
+        else if (p === "zkm_gdynia") pName = "ZKM Gdynia";
+        else if (p === "mzk_wejherowo") pName = "MZK Wejherowo";
+        else if (p === "plk_rail") pName = "Pociągi (SKM/IC/PR)";
+        else pName = p.charAt(0).toUpperCase() + p.slice(1);
+        
+        rows.push(html`<div class="provider-header">${pName}</div>`);
+        grouped[p].forEach(d => rows.push(renderRow(d)));
+      }
+    } else {
+      deps.forEach(d => rows.push(renderRow(d)));
+    }
 
     const maxDep = this._config.max_departures || 10;
     const rendered = deps.length;

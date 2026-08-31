@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+.zm-arrow{position:relative;display:inline-block;transition:transform 0.8s ease}
+.zm-arrow svg{display:block}
+</style>
+</head>
+<body>
+<div id="map" style="width: 500px; height: 500px;"></div>
+<script>
+const map = L.map('map').setView([54.3897, 18.5768], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+const size = 40;
+const half = size / 2;
+const bearing = 0;
+const color = "#DA2128";
+const route = "6";
+const fontSize = 13;
+const pathRotation = bearing + 180;
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size + 6}" viewBox="0 0 ${size} ${size + 6}">
+  <circle cx="${half}" cy="${half}" r="${half - 3}" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+  <path d="M${half},${size - 3} Q${half - 14},${size + 1} ${half - 7},${size - 1} L${half},${size + 6} L${half + 7},${size - 1} Q${half + 14},${size + 1} ${half},${size - 3} Z" fill="${color}" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" transform="rotate(${pathRotation}, ${half}, ${half})"/>
+  <text x="${half}" y="${half}" text-anchor="middle" dominant-baseline="central" font-weight="700" font-size="${fontSize}" fill="#fff" font-family="system-ui,sans-serif">${route}</text>
+</svg>`;
+
+const mkHtml = `<div class="zm-arrow" style="opacity:1">${svg}</div>`;
+const icon = L.divIcon({
+  className: "",
+  html: mkHtml,
+  iconSize: [size, size + 6],
+  iconAnchor: [size / 2, size + 6],
+});
+L.marker([54.3897, 18.5768], { icon }).addTo(map);
+</script>
+</body>
+</html>

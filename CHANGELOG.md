@@ -1,3 +1,14 @@
+# 1.6.0
+* **Feature:** Added `binary_sensor` for PLK trains that turns `on` if any train is delayed by > 5 minutes.
+* **Feature:** Added native route color support directly from GTFS-RT providers.
+* **Feature:** Added `refresh_gtfs` service to manually redownload GTFS schedule without restarting HA.
+* **Feature:** Exposed estimated walking distance and time from HA home location to the stops for GTFS-RT providers.
+* **Feature:** Added English language translations and auto-detection for the Lovelace card editor.
+* **Feature:** Added advanced configuration options in OptionsFlow (Destination Filter, Highlight Mode, Real-Time Only, etc.).
+* **Improvement:** Parallelized GTFS ZIP downloads for significantly faster initial load times.
+* **Refactoring:** Large monolith providers (`provider_gtfsrt.py`) were decomposed for better maintainability and performance.
+* **Fix:** Removed empty `name` fields in `ha-form` which broke flat config structures.
+
 # Changelog
 
 ## [1.6.0] — unreleased

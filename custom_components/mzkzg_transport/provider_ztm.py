@@ -127,6 +127,8 @@ def _parse_api_departures(data: dict, fleet: dict, now) -> list:
         vinfo = fleet.get(vcode, {})
         characteristics = str(vinfo.get("vehicleCharacteristics", "")).lower()
         departures.append({
+            "trip_id": d.get("tripId"),
+            "route_id_int": d.get("routeId"),
             "route": str(d.get("routeShortName") or d.get("routeId") or "?"),
             "headsign": d.get("headsign") or d.get("tripHeadsign") or "—",
             "estimated_time": est_time.isoformat() if est_time else "",
