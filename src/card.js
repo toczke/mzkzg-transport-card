@@ -32,7 +32,7 @@ export class MzkzgTransportCard extends LitElement {
   }
 
   static getStubConfig() {
-    return { type: "custom:polish-transport-card", entities: [], max_departures: 10, show_delays: true, hide_terminus: true, show_bike: true, show_wheelchair: true, show_footer: true };
+    return { type: "custom:polish-transport-card", entities: [], max_departures: 10, min_departures: 5, show_delays: true, hide_terminus: true, show_bike: true, show_wheelchair: true, show_footer: true };
   }
 
   static getConfigElement() {
@@ -45,7 +45,8 @@ export class MzkzgTransportCard extends LitElement {
     this._config = {
       ...config,
       entities: Array.isArray(config.entities) ? config.entities : [],
-      max_departures: Math.max(1, Math.min(20, parseInt(config.max_departures) || 10)),
+      max_departures: Math.max(1, Math.min(100, parseInt(config.max_departures) || 10)),
+      min_departures: Math.max(0, Math.min(100, parseInt(config.min_departures) || 0)),
       refresh_interval: Math.max(5, Math.min(600, parseInt(config.refresh_interval) || 60)),
       display_preset: config.display_preset || "standard",
       view_mode: config.view_mode || "mixed",
@@ -346,7 +347,8 @@ export class MzkzgTransportCard extends LitElement {
     if (!c.entities?.length) return html`<div class="state-msg"><span class="icon">📍</span>${t("no_entities")}</div>`;
 
     if (!this.hass) {
-      return Array.from({ length: c.max_departures }).map(() => html`
+      const skeletonCount = typeof c.min_departures !== 'undefined' && c.min_departures > 0 ? c.min_departures : Math.min(5, c.max_departures || 5);
+      return Array.from({ length: skeletonCount }).map(() => html`
         <div class="dep-row">
           <div class="skel" style="height:26px;width:40px;border-radius:6px"></div>
           <div class="skel" style="height:13px;flex:1"></div>
@@ -483,10 +485,10 @@ export class MzkzgTransportCard extends LitElement {
       deps.forEach(d => rows.push(renderRow(d)));
     }
 
-    const maxDep = this._config.max_departures || 10;
+    const minDep = typeof this._config.min_departures !== "undefined" ? parseInt(this._config.min_departures) : 0;
     const rendered = deps.length;
-    if (rendered > 0 && rendered < maxDep) {
-      const padCount = maxDep - rendered;
+    if (rendered > 0 && rendered < minDep) {
+      const padCount = minDep - rendered;
       for (let i=0; i<padCount; i++) {
         rows.push(html`<div class="dep-row" style="visibility:hidden">&nbsp;</div>`);
       }

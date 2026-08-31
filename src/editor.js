@@ -25,7 +25,8 @@ const SCHEMA = [
     type: "grid",
     name: "",
     schema: [
-      { name: "max_departures", selector: { number: { min: 1, max: 20, mode: "box" } } },
+      { name: "max_departures", selector: { number: { min: 1, max: 100, mode: "box" } } },
+      { name: "min_departures", selector: { number: { min: 0, max: 100, mode: "box" } } },
       { name: "refresh_interval", selector: { number: { min: 10, max: 300, mode: "box", unit_of_measurement: "s" } } }
     ]
   },
@@ -116,6 +117,7 @@ export class MzkzgTransportCardEditor extends LitElement {
       display_preset: "Motyw",
       view_mode: "Widok",
       max_departures: "Maksymalna liczba odjazdów",
+      min_departures: "Minimalna liczba odjazdów (puste wiersze)",
       refresh_interval: "Odświeżanie",
       header_color: "Kolor nagłówka",
       filter_routes: "Filtruj linie",
@@ -141,6 +143,7 @@ export class MzkzgTransportCardEditor extends LitElement {
       display_preset: "Display preset",
       view_mode: "View mode",
       max_departures: "Max departures",
+      min_departures: "Min departures (empty rows padding)",
       refresh_interval: "Refresh interval",
       header_color: "Header color",
       filter_routes: "Filter routes",
